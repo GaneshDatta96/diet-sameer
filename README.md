@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gut Freedom · 7-Day Personalized Meal Plan Tool
 
-## Getting Started
+A low-ticket ($10) lead-generation tool for **Sameer Dossani (GutFreedom)**. Users
+answer a short, Typeform-style questionnaire and receive a personalized 7-day
+IBD-calming meal plan by email — deliberately delivered after an **8–12 hour
+"crafting" window** so it feels hand-finished rather than machine-generated.
+Every plan is grounded in Sameer's **IBD Traffic-Light Food Guide** and ends by
+inviting the user to book a free strategy call.
 
-First, run the development server:
+> Runs with **zero external keys** for review: mock payment, offline plan
+> generator, and console "email". Add keys to switch on Stripe, OpenAI and Resend.
+
+## Quick start
 
 ```bash
+npm install
+cp .env.example .env.local   # optional — works without it
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+To watch delivery happen quickly during review, set a short window in
+`.env.local`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+DELIVERY_MIN_MINUTES=1
+DELIVERY_MAX_MINUTES=2
+```
 
-## Learn More
+The generated plan email is printed to the server console when no
+`RESEND_API_KEY` is set.
 
-To learn more about Next.js, take a look at the following resources:
+## The user flow
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. **Landing** (`/`) — value prop, traffic-light explainer, Sameer's voice.
+2. **Intake** (`/plan`) — one-question-at-a-time form: name, email, eating style
+   (meat eater / semi-vegetarian / vegetarian), meat frequency, food likes &
+   dislikes, dietary restrictions, current flare state, goal, and basic body
+   info.
+3. **Checkout** — $10 (mock or Stripe Checkout).
+4. **Confirmation** (`/confirm`) — "your plan is being crafted, arrives in 8–12
+   hours" + immediate book-a-call CTA.
+5. **Delivery** — the plan is emailed after the randomized delay.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## How plans are generated
 
-## Deploy on Vercel
+- **Offline rules engine** (`src/lib/mealPlan.ts`) — deterministic, always
+  available, fully faithful to the traffic-light guide. This is the default.
+- **Optional AI** (`src/lib/ai.ts`) — if `OPENAI_API_KEY` is set, the model
+  writes a warmer plan constrained by the same guide, with automatic fallback to
+  the rules engine on any error.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The food guide itself is encoded in `src/lib/foodGuide.ts`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Delayed delivery
+
+- On payment, the plan is generated immediately and stored with a `deliverAt`
+  timestamp (now + random 8–12h).
+- A best-effort in-process timer handles single-server/local delivery.
+- For reliable production delivery, the cron endpoint `/api/cron/deliver` sends
+  everything that's due. `vercel.json` schedules it every 15 minutes; protect it
+  with the `CRON_SECRET` env var.
+
+## Configuration
+
+All config is centralized in `src/lib/config.ts` and driven by env vars — see
+`.env.example` for the full list (pricing, delivery window, Stripe, OpenAI,
+Resend, cron secret).
+
+## Production notes
+
+- The order store (`src/lib/store.ts`) is a JSON file under `.data/`. Swap it for
+  a real database (Postgres/Supabase) before scaling beyond a single server.
+- With Stripe enabled, payment is verified server-side against the Checkout
+  Session before any plan is generated or delivered.
+- `/api/preview` (sample generation without payment) is disabled in production
+  unless `ALLOW_PREVIEW=1`.
+
+## Tech
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4.

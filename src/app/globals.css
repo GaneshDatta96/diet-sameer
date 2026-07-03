@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f4ec;
+  --foreground: #22302c;
+
+  /* Gut Freedom brand palette (from the IBD Traffic-Light guide) */
+  --cream: #f7f4ec;
+  --cream-card: #fffdf7;
+  --ink: #22302c;
+  --muted: #5c6b66;
+  --teal-deep: #14564a;
+  --teal: #2e9e7b;
+  --green: #2e9e7b;
+  --amber: #e6a324;
+  --rust: #c0492f;
+  --line: #e7e1d3;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --color-cream: var(--cream);
+  --color-cream-card: var(--cream-card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-teal-deep: var(--teal-deep);
+  --color-teal: var(--teal);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+  --color-rust: var(--rust);
+  --color-line: var(--line);
+
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-poppins);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-poppins), system-ui, sans-serif;
+}
+
+/* subtle entrance animation used across the flow */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.animate-fade-in-up {
+  animation: fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(46, 158, 123, 0.08) 25%,
+    rgba(46, 158, 123, 0.18) 37%,
+    rgba(46, 158, 123, 0.08) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* focus ring */
+.brand-focus:focus-visible {
+  outline: 3px solid rgba(46, 158, 123, 0.4);
+  outline-offset: 2px;
 }
