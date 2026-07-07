@@ -105,7 +105,7 @@ export function analyzeFormInput(input: PartialFormInput): FormInsights {
   const dislikes = (input.dislikes || "").toLowerCase();
   const notes = (input.notes || "").toLowerCase();
   const loves = (input.loves || "").toLowerCase();
-  const free = `${dislikes} ${notes}`;
+  const free = `${loves} ${dislikes} ${notes}`;
   const explicit = new Set((input.restrictions ?? []) as Restriction[]);
 
   const avoidFoods = splitList(input.dislikes || "");
@@ -221,7 +221,6 @@ function buildPlanStrategy(
 function detectContradictions(input: PartialFormInput): string[] {
   const issues: string[] = [];
   const loves = (input.loves || "").toLowerCase();
-  const dislikes = (input.dislikes || "").toLowerCase();
 
   if (input.dietType === "vegetarian") {
     const meatWords = ["beef", "lamb", "ribeye", "steak", "chicken", "salmon", "fish", "sardine", "bacon", "pork"];

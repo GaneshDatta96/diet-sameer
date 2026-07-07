@@ -1,17 +1,40 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { promises as fs } from "fs";
 import path from "path";
 import { Order } from "./types";
 
 /**
- * Minimal file-based order store — perfect for local review and a single-server
- * deployment. For a scaled production deployment swap this for a real database
- * (Postgres, Supabase, etc.); the interface below is all the app depends on.
+ * Order store with two backends:
+ * - Cloudflare KV (`ORDER_STORE` binding) in production Workers
+ * - Local JSON file under `.data/` for `next dev` and single-node runs
  */
 
+const ORDERS_KEY = "orders";
 const DATA_DIR = path.join(process.cwd(), ".data");
 const FILE = path.join(DATA_DIR, "orders.json");
 
+interface OrderKv {
+  get(key: string, type: "text"): Promise<string | null>;
+  put(key: string, value: string): Promise<void>;
+}
+
+async function getKv(): Promise<OrderKv | null> {
+  try {
+    const { env } = await getCloudflareContext({ async: true });
+    return env.ORDER_STORE ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function readAll(): Promise<Record<string, Order>> {
+  const kv = await getKv();
+  if (kv) {
+    const raw = await kv.get(ORDERS_KEY, "text");
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, Order>;
+  }
+
   try {
     const raw = await fs.readFile(FILE, "utf8");
     return JSON.parse(raw) as Record<string, Order>;
@@ -21,6 +44,12 @@ async function readAll(): Promise<Record<string, Order>> {
 }
 
 async function writeAll(orders: Record<string, Order>): Promise<void> {
+  const kv = await getKv();
+  if (kv) {
+    await kv.put(ORDERS_KEY, JSON.stringify(orders));
+    return;
+  }
+
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(FILE, JSON.stringify(orders, null, 2), "utf8");
 }

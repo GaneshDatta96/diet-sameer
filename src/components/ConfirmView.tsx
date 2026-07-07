@@ -23,11 +23,7 @@ export function ConfirmView() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (!orderId) {
-      setState("error");
-      setErrorMsg("Missing order reference.");
-      return;
-    }
+    if (!orderId) return;
     let cancelled = false;
     (async () => {
       try {
@@ -61,6 +57,28 @@ export function ConfirmView() {
       cancelled = true;
     };
   }, [orderId, sessionId, mock]);
+
+  if (!orderId) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-5 py-8">
+        <Logo />
+        <div className="flex flex-1 flex-col justify-center py-10">
+          <div className="rounded-2xl border border-rust/30 bg-rust/5 p-6 text-center">
+            <h1 className="font-display text-2xl font-bold text-rust">
+              We hit a snag
+            </h1>
+            <p className="mt-2 text-ink">Missing order reference.</p>
+            <a
+              href="/plan"
+              className="mt-5 inline-block rounded-full bg-teal-deep px-6 py-3 font-display font-bold text-white"
+            >
+              Try again
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const window = result?.window ?? { min: 8, max: 12 };
   const eta = result?.deliverAt

@@ -70,12 +70,49 @@ Resend, cron secret).
 
 ## Production notes
 
-- The order store (`src/lib/store.ts`) is a JSON file under `.data/`. Swap it for
-  a real database (Postgres/Supabase) before scaling beyond a single server.
+- The order store (`src/lib/store.ts`) uses a local JSON file under `.data/`
+  for development. On Cloudflare Workers it uses the `ORDER_STORE` KV binding
+  configured in `wrangler.jsonc`. Swap for Postgres/Supabase if you need richer
+  querying at scale.
 - With Stripe enabled, payment is verified server-side against the Checkout
   Session before any plan is generated or delivered.
 - `/api/preview` (sample generation without payment) is disabled in production
   unless `ALLOW_PREVIEW=1`.
+
+## Deploy to Cloudflare Workers
+
+This app uses Next.js API routes, delayed delivery, and persistent order
+storage. **Do not deploy with Cloudflare Pages' default Next.js preset** — it
+expects static output and will fail or drop server features.
+
+Use the OpenNext Cloudflare adapter instead:
+
+```bash
+# 1. Create a KV namespace for orders and paste the id into wrangler.jsonc
+npx wrangler kv namespace create ORDER_STORE
+
+# 2. Set production env vars in the Cloudflare dashboard (or wrangler secrets)
+#    NEXT_PUBLIC_APP_URL, STRIPE_SECRET_KEY, RESEND_API_KEY, CRON_SECRET, etc.
+
+# 3. Build and deploy
+npm run deploy
+```
+
+For Git-connected Cloudflare Workers builds, set:
+
+- **Build command:** `npm run build:cf`
+- **Deploy command:** `npx opennextjs-cloudflare deploy` (or use Workers Builds)
+
+Schedule `/api/cron/deliver` every 15 minutes (cron-job.org, GitHub Actions,
+or a Cloudflare Cron Trigger hitting the URL with `CRON_SECRET`). The
+`vercel.json` cron schedule only applies on Vercel.
+
+Local preview in the Workers runtime:
+
+```bash
+cp .dev.vars.example .dev.vars
+npm run preview
+```
 
 ## Tech
 

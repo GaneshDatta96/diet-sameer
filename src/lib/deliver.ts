@@ -39,6 +39,9 @@ export async function deliverDueOrders(): Promise<number> {
  * cron endpoint (/api/cron/deliver) is the source of truth for reliability.
  */
 export function scheduleDelivery(id: string, deliverAt: number) {
+  if (process.env.CF_PAGES === "1" || process.env.CLOUDFLARE_WORKERS === "1") {
+    return;
+  }
   const delay = Math.max(0, deliverAt - Date.now());
   // Node's setTimeout caps around 24.8 days; our window is hours, so this is fine.
   setTimeout(() => {
