@@ -18,9 +18,7 @@ const isCloudflareWorkersBuild =
   process.env.WORKERS_CI === "true";
 
 if (isCloudflareWorkersBuild) {
-  run(
-    "opennextjs-cloudflare build && opennextjs-cloudflare populateCache local"
-  );
+  run("npm run build:cf");
 } else {
   run("npm run build:next");
 }

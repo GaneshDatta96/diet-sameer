@@ -100,10 +100,15 @@ npm run deploy
 
 For Git-connected Cloudflare Workers builds, set:
 
-- **Build command:** `npm run build` (auto-detects Cloudflare CI and runs OpenNext)
-- **Deploy command:** `npx wrangler deploy`
+- **Build command:** `npm run build:cf`
+- **Deploy command:** `npx opennextjs-cloudflare deploy`
 
-Or explicitly: `npm run build:cf` then `npx wrangler deploy`.
+Do **not** use `npx wrangler deploy` alone as the deploy command — use OpenNext's
+deploy so cache population and worker bundling stay in sync.
+
+The worker `name` in `wrangler.jsonc` must match your Cloudflare Workers project
+name (this repo uses `diet-sameer`). If they differ, Git deploys to one worker
+while `*.workers.dev` still shows the default **Hello World** starter on another.
 
 `build:cf` runs `populateCache` so pre-rendered pages (`/`, `/plan`, `/confirm`) are
 copied into the static asset bundle. Skipping that step causes **404 on every page**.

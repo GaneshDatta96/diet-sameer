@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
-  "name": "gut-freedom-meal-plan",
+  "name": "diet-sameer",
   "compatibility_date": "2025-01-01",
   "compatibility_flags": [
     "nodejs_compat",
@@ -14,7 +14,7 @@
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "gut-freedom-meal-plan"
+      "service": "diet-sameer"
     }
   ],
   // Create with: npx wrangler kv namespace create ORDER_STORE
