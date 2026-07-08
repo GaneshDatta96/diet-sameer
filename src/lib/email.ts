@@ -11,24 +11,27 @@ interface SendPlanArgs {
   scheduledAt?: number;
 }
 
-async function sendViaGmail(
+async function sendViaSmtp(
   to: string,
   subject: string,
   html: string
 ): Promise<{ ok: boolean; id?: string }> {
+  const smtp = config.smtp;
+  if (!smtp) return { ok: false };
+
   try {
     const transport = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
       auth: {
-        user: config.gmail.user,
-        pass: config.gmail.appPassword,
+        user: smtp.user,
+        pass: smtp.pass,
       },
     });
 
     const info = await transport.sendMail({
-      from: config.gmail.fromAddress,
+      from: smtp.from,
       to,
       subject,
       html,
@@ -36,7 +39,7 @@ async function sendViaGmail(
 
     return { ok: true, id: info.messageId };
   } catch (err) {
-    console.error("[email] gmail failed:", err);
+    console.error("[email] smtp failed:", err);
     return { ok: false };
   }
 }
@@ -54,15 +57,15 @@ export async function sendPlanEmail({
   const subject = `${firstName ? firstName + ", your" : "Your"} 7-Day Gut Freedom plan is ready`;
   const html = renderPlanEmail(plan, firstName || "there");
 
-  if (config.gmail.enabled) {
-    return sendViaGmail(to, subject, html);
+  if (config.smtp) {
+    return sendViaSmtp(to, subject, html);
   }
 
   if (!config.resend.enabled) {
     const delay = scheduledAt ? Math.max(0, scheduledAt - Date.now()) : 0;
     const send = () => {
       console.log(
-        `\n[email:mock] To: ${to}\n[email:mock] Subject: ${subject}\n[email:mock] (Set GMAIL_USER + GMAIL_APP_PASSWORD or RESEND_API_KEY to send. HTML length: ${html.length})\n`
+        `\n[email:mock] To: ${to}\n[email:mock] Subject: ${subject}\n[email:mock] (Set GMAIL_USER + GMAIL_APP_PASSWORD, GMAIL_ACCOUNTS_JSON, or RESEND_API_KEY to send. HTML length: ${html.length})\n`
       );
     };
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) {

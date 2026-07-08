@@ -52,16 +52,18 @@ export const config = {
     },
   },
 
-  gmail: {
-    user: process.env.GMAIL_USER ?? "",
-    appPassword: process.env.GMAIL_APP_PASSWORD ?? "",
-    from: process.env.GMAIL_FROM ?? "",
-    get enabled() {
-      return Boolean(this.user && this.appPassword);
-    },
-    get fromAddress() {
-      return this.from || `Gut Freedom <${this.user}>`;
-    },
+  smtp: resolveSmtpConfig(),
+
+  /** @deprecated Use smtp — kept for callers that read config.gmail */
+  get gmail() {
+    const s = this.smtp;
+    return {
+      user: s?.user ?? "",
+      appPassword: s?.pass ?? "",
+      from: s?.from ?? "",
+      enabled: Boolean(s),
+      fromAddress: s?.from ?? "",
+    };
   },
 
   resend: {
@@ -93,6 +95,65 @@ export const config = {
 
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
 } as const;
+
+interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+  from: string;
+}
+
+function resolveSmtpConfig(): SmtpConfig | null {
+  const fromEnv =
+    process.env.GMAIL_FROM ?? process.env.SMTP_FROM ?? "";
+
+  const json = process.env.GMAIL_ACCOUNTS_JSON?.trim();
+  if (json) {
+    try {
+      const accounts = JSON.parse(json) as {
+        email?: string;
+        password?: string;
+        smtp?: string;
+        port?: number;
+      }[];
+      const acc = accounts[0];
+      if (acc?.email && acc?.password) {
+        const port = acc.port ?? 587;
+        return {
+          host: acc.smtp ?? "smtp.gmail.com",
+          port,
+          secure: port === 465,
+          user: acc.email,
+          pass: acc.password,
+          from: fromEnv || `Gut Freedom <${acc.email}>`,
+        };
+      }
+    } catch {
+      console.error("[config] GMAIL_ACCOUNTS_JSON is not valid JSON");
+    }
+  }
+
+  const user =
+    process.env.GMAIL_USER ?? process.env.SMTP_USER ?? "";
+  const pass =
+    process.env.GMAIL_APP_PASSWORD ??
+    process.env.SMTP_PASSWORD ??
+    process.env.SMTP_PASS ??
+    "";
+  if (!user || !pass) return null;
+
+  const port = Number(process.env.SMTP_PORT ?? 587);
+  return {
+    host: process.env.SMTP_HOST ?? "smtp.gmail.com",
+    port,
+    secure: port === 465,
+    user,
+    pass,
+    from: fromEnv || `Gut Freedom <${user}>`,
+  };
+}
 
 export function deliveryWindowHours() {
   return {
