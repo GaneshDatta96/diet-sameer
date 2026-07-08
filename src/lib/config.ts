@@ -22,13 +22,18 @@ export const config = {
   },
 
   /**
-   * Delivery is intentionally delayed so the plan feels hand-crafted rather than
-   * spat out by a machine. Randomised between min and max hours.
-   * For local review set DELIVERY_MIN_MINUTES / DELIVERY_MAX_MINUTES small.
+   * Test mode: skip payment and send the plan immediately (set SKIP_PAYWALL=0
+   * and restore delivery minutes for production).
+   */
+  skipPaywall: process.env.SKIP_PAYWALL !== "0",
+
+  /**
+   * Delivery delay before the plan email goes out. Defaults to 0 while testing.
+   * Production: set DELIVERY_MIN_MINUTES=480 and DELIVERY_MAX_MINUTES=720.
    */
   delivery: {
-    minMinutes: Number(process.env.DELIVERY_MIN_MINUTES ?? 8 * 60),
-    maxMinutes: Number(process.env.DELIVERY_MAX_MINUTES ?? 12 * 60),
+    minMinutes: Number(process.env.DELIVERY_MIN_MINUTES ?? 0),
+    maxMinutes: Number(process.env.DELIVERY_MAX_MINUTES ?? 0),
   },
 
   stripe: {
@@ -44,6 +49,18 @@ export const config = {
     model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
     get enabled() {
       return Boolean(this.apiKey);
+    },
+  },
+
+  gmail: {
+    user: process.env.GMAIL_USER ?? "",
+    appPassword: process.env.GMAIL_APP_PASSWORD ?? "",
+    from: process.env.GMAIL_FROM ?? "",
+    get enabled() {
+      return Boolean(this.user && this.appPassword);
+    },
+    get fromAddress() {
+      return this.from || `Gut Freedom <${this.user}>`;
     },
   },
 

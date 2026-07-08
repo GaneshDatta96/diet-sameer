@@ -52,6 +52,7 @@ const initial: FormState = {
 };
 
 const PRICE_LABEL = process.env.NEXT_PUBLIC_PRICE_LABEL ?? "$10";
+const SKIP_PAYWALL = process.env.NEXT_PUBLIC_SKIP_PAYWALL !== "0";
 
 type StepKey =
   | "name"
@@ -269,7 +270,9 @@ export function PlanFlow() {
                 >
                   {submitting
                     ? "Setting up…"
-                    : `Pay ${PRICE_LABEL} & craft my plan`}
+                    : SKIP_PAYWALL
+                      ? "Send my plan →"
+                      : `Pay ${PRICE_LABEL} & craft my plan`}
                 </button>
               ) : (
                 <button
@@ -962,7 +965,11 @@ function Review({
     <Screen
       eyebrow="Almost there"
       title="Quick review, then we craft your plan"
-      help={`One-time ${PRICE_LABEL}. Hand-finished and emailed to you — not instant on screen.`}
+      help={
+        SKIP_PAYWALL
+          ? "We'll email your personalized 7-day plan right away."
+          : `One-time ${PRICE_LABEL}. Hand-finished and emailed to you — not instant on screen.`
+      }
     >
       <div className="rounded-2xl border border-green/30 bg-green/5 p-4 text-sm text-ink">
         {insights.planStrategy}

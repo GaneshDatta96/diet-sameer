@@ -19,6 +19,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
+  if (config.skipPaywall) {
+    return NextResponse.json({
+      mock: true,
+      url: `/confirm?orderId=${orderId}&mock=1`,
+    });
+  }
+
   if (config.kajabi.enabled) {
     return NextResponse.json({
       kajabi: true,

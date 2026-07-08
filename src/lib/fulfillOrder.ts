@@ -30,14 +30,15 @@ export async function fulfillOrder(
   }
 
   const plan = await generatePlan(order.intake);
-  const deliverAt = Date.now() + randomDeliveryDelayMs();
+  const delayMs = randomDeliveryDelayMs();
+  const deliverAt = delayMs > 0 ? Date.now() + delayMs : Date.now();
   const firstName = order.intake.name?.split(" ")[0] ?? "there";
 
   const email = await sendPlanEmail({
     to: order.intake.email,
     firstName,
     plan,
-    scheduledAt: deliverAt,
+    scheduledAt: delayMs > 0 ? deliverAt : undefined,
   });
 
   if (!email.ok) {

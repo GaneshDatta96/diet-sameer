@@ -107,7 +107,8 @@ export function ConfirmView() {
     );
   }
 
-  const window = result?.window ?? { min: 8, max: 12 };
+  const window = result?.window ?? { min: 0, max: 0 };
+  const immediate = window.min === 0 && window.max === 0;
   const eta = result?.deliverAt
     ? new Date(result.deliverAt).toLocaleString(undefined, {
         weekday: "short",
@@ -129,7 +130,7 @@ export function ConfirmView() {
               <span className="h-3 w-3 animate-bounce rounded-full bg-rust" />
             </div>
             <h1 className="font-display text-2xl font-bold text-teal-deep">
-              Confirming your order…
+              {mock === "1" ? "Sending your plan…" : "Confirming your order…"}
             </h1>
             <p className="mt-2 text-muted">One moment.</p>
           </div>
@@ -161,26 +162,37 @@ export function ConfirmView() {
                 ✓
               </div>
               <p className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-green">
-                Payment received
+                {immediate ? "All set" : "Payment received"}
               </p>
               <h1 className="mt-2 font-display text-3xl font-bold text-teal-deep">
-                {firstName ? `${firstName}, your` : "Your"} plan is being crafted
+                {firstName ? `${firstName}, your` : "Your"}{" "}
+                {immediate ? "plan is on its way" : "plan is being crafted"}
               </h1>
               <p className="mx-auto mt-3 max-w-lg text-muted">
-                Good plans aren&apos;t spat out by a machine in two seconds.
-                We&apos;re building your 7 days on the traffic-light foundation
-                and hand-finishing it for your answers. It will land in your
-                inbox within{" "}
-                <span className="font-semibold text-teal-deep">
-                  {window.min}–{window.max} hours
-                </span>
-                {eta ? ` (around ${eta})` : ""}.
+                {immediate ? (
+                  <>
+                    Your personalized 7-day Gut Freedom plan was just sent to
+                    your inbox. Give it a minute, then check spam if you
+                    don&apos;t see it.
+                  </>
+                ) : (
+                  <>
+                    Good plans aren&apos;t spat out by a machine in two seconds.
+                    We&apos;re building your 7 days on the traffic-light
+                    foundation and hand-finishing it for your answers. It will
+                    land in your inbox within{" "}
+                    <span className="font-semibold text-teal-deep">
+                      {window.min}–{window.max} hours
+                    </span>
+                    {eta ? ` (around ${eta})` : ""}.
+                  </>
+                )}
               </p>
             </div>
 
             <div className="mt-6 rounded-2xl border border-line bg-white p-6">
               <h2 className="font-display text-lg font-bold text-teal-deep">
-                While you wait — a head start
+                {immediate ? "While you read — a head start" : "While you wait — a head start"}
               </h2>
               <ul className="mt-3 space-y-2 text-sm text-ink">
                 <li className="flex gap-2">
@@ -204,8 +216,16 @@ export function ConfirmView() {
 
             <div className="mt-6">
               <BookCallCard
-                heading="Don't wait for the email — book your free call"
-                body="Your plan is a starting map. The real results come from a plan built around your body, your history and how you're responding. Book a free 30-minute Gut Freedom Strategy Call — no pressure, no obligation."
+                heading={
+                  immediate
+                    ? "Want help putting this into practice?"
+                    : "Don't wait for the email — book your free call"
+                }
+                body={
+                  immediate
+                    ? "Your plan is a starting map. The real results come from a plan built around your body, your history and how you're responding. Book a free 30-minute Gut Freedom Strategy Call — no pressure, no obligation."
+                    : "Your plan is a starting map. The real results come from a plan built around your body, your history and how you're responding. Book a free 30-minute Gut Freedom Strategy Call — no pressure, no obligation."
+                }
               />
             </div>
 

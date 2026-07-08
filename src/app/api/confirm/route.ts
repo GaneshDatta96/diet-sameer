@@ -52,6 +52,17 @@ export async function POST(req: Request) {
     );
   }
 
+  if (config.skipPaywall || body?.mock) {
+    const result = await fulfillOrder(orderId, config.skipPaywall ? "test" : "mock");
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error ?? "Could not fulfill your order" },
+        { status: 502 }
+      );
+    }
+    return NextResponse.json(fulfillResponseBody(result));
+  }
+
   let paymentRef: string | undefined;
   if (config.stripe.enabled) {
     if (!body?.sessionId) {
@@ -63,10 +74,7 @@ export async function POST(req: Request) {
     }
     paymentRef = body.sessionId;
   } else {
-    if (!body?.mock) {
-      return NextResponse.json({ error: "Payment required" }, { status: 402 });
-    }
-    paymentRef = "mock";
+    return NextResponse.json({ error: "Payment required" }, { status: 402 });
   }
 
   const result = await fulfillOrder(orderId, paymentRef);

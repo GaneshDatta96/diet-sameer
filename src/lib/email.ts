@@ -1,3 +1,4 @@
+import nodemailer from "nodemailer";
 import { config } from "./config";
 import { renderPlanEmail } from "./planEmail";
 import { MealPlan } from "./types";
@@ -6,13 +7,43 @@ interface SendPlanArgs {
   to: string;
   firstName: string;
   plan: MealPlan;
-  /** When set, Resend holds the email until this time (epoch ms). */
+  /** When set, Resend holds the email until this time (epoch ms). Gmail sends immediately. */
   scheduledAt?: number;
 }
 
+async function sendViaGmail(
+  to: string,
+  subject: string,
+  html: string
+): Promise<{ ok: boolean; id?: string }> {
+  try {
+    const transport = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      auth: {
+        user: config.gmail.user,
+        pass: config.gmail.appPassword,
+      },
+    });
+
+    const info = await transport.sendMail({
+      from: config.gmail.fromAddress,
+      to,
+      subject,
+      html,
+    });
+
+    return { ok: true, id: info.messageId };
+  } catch (err) {
+    console.error("[email] gmail failed:", err);
+    return { ok: false };
+  }
+}
+
 /**
- * Send or schedule the finished plan. Uses Resend when RESEND_API_KEY is set;
- * otherwise logs to the server console (with optional local delay for testing).
+ * Send or schedule the finished plan.
+ * Priority: Gmail (test) → Resend → console mock.
  */
 export async function sendPlanEmail({
   to,
@@ -23,11 +54,15 @@ export async function sendPlanEmail({
   const subject = `${firstName ? firstName + ", your" : "Your"} 7-Day Gut Freedom plan is ready`;
   const html = renderPlanEmail(plan, firstName || "there");
 
+  if (config.gmail.enabled) {
+    return sendViaGmail(to, subject, html);
+  }
+
   if (!config.resend.enabled) {
     const delay = scheduledAt ? Math.max(0, scheduledAt - Date.now()) : 0;
     const send = () => {
       console.log(
-        `\n[email:mock] To: ${to}\n[email:mock] Subject: ${subject}\n[email:mock] (Set RESEND_API_KEY to actually send. HTML length: ${html.length})\n`
+        `\n[email:mock] To: ${to}\n[email:mock] Subject: ${subject}\n[email:mock] (Set GMAIL_USER + GMAIL_APP_PASSWORD or RESEND_API_KEY to send. HTML length: ${html.length})\n`
       );
     };
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
