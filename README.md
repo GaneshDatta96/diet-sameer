@@ -103,6 +103,13 @@ For Git-connected Cloudflare Workers builds, set:
 - **Build command:** `npm run build:cf`
 - **Deploy command:** `npx opennextjs-cloudflare deploy` (or use Workers Builds)
 
+`build:cf` runs `populateCache` so pre-rendered pages (`/`, `/plan`, `/confirm`) are
+copied into the static asset bundle. Skipping that step causes **404 on every page**.
+
+**Do not use Cloudflare Pages** with the default Next.js preset for this app — use
+**Cloudflare Workers** with OpenNext instead. Pages (`*.pages.dev`) will 404 because
+this app needs server API routes and the OpenNext worker bundle.
+
 Schedule `/api/cron/deliver` every 15 minutes (cron-job.org, GitHub Actions,
 or a Cloudflare Cron Trigger hitting the URL with `CRON_SECRET`). The
 `vercel.json` cron schedule only applies on Vercel.
