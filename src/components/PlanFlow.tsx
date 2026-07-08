@@ -60,7 +60,7 @@ async function parseApiResponse(res: Response): Promise<Record<string, unknown>>
   if (!text.trim()) {
     throw new Error(
       res.status === 503
-        ? "Server storage is not configured yet. Add Upstash Redis on Vercel."
+        ? "Server storage is not configured yet. Add Supabase URL + service role key on Vercel."
         : `Server returned an empty response (${res.status}). Please try again.`
     );
   }

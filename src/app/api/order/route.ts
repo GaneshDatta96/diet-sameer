@@ -23,11 +23,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ orderId: order.id });
   } catch (err) {
     console.error("[order] failed:", err);
-    if (err instanceof Error && err.message === "MISSING_REDIS") {
+    if (err instanceof Error && err.message === "MISSING_SUPABASE") {
       return NextResponse.json(
         {
           error:
-            "Order storage is not configured on the server. Add Upstash Redis in Vercel project settings.",
+            "Order storage is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Vercel.",
         },
         { status: 503 }
       );

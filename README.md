@@ -68,8 +68,8 @@ The food guide itself is encoded in `src/lib/foodGuide.ts`.
 |------|------|
 | **This app** | Questionnaire, plan generation, confirmation page |
 | **Kajabi** | $10 checkout, payment processing, contact CRM, nurture emails |
-| **Resend** | Sends the personalized 7-day meal plan (Kajabi can't generate dynamic plans) |
-| **Upstash Redis** | Stores orders between checkout and delivery |
+| **Resend / Gmail SMTP** | Sends the personalized 7-day meal plan |
+| **Supabase** | Stores orders between checkout and delivery |
 
 ### 1. Create the offer in Kajabi
 
@@ -127,18 +127,18 @@ Kajabi → Settings → Public API → create credentials:
 ## Deploy to Vercel
 
 1. **Import** the GitHub repo in [Vercel](https://vercel.com) (framework: Next.js).
-2. **Add Redis** — Vercel dashboard → Storage → Redis (Upstash) → connect to project.
+2. **Create a free Supabase project** at [supabase.com](https://supabase.com) → run `supabase/schema.sql` in the SQL Editor.
 3. **Set environment variables** in Project Settings:
 
 | Variable | Required | Notes |
 |----------|----------|-------|
 | `NEXT_PUBLIC_APP_URL` | Yes | Your production URL, e.g. `https://your-app.vercel.app` |
-| `RESEND_API_KEY` | Yes | Schedules delayed plan emails |
-| `RESEND_FROM` | Yes | Verified sender in Resend |
-| `STRIPE_SECRET_KEY` | For real payments | Omit for mock checkout |
+| `SUPABASE_URL` | Yes | Project URL from Supabase → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | `service_role` secret (server only — never expose publicly) |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | For test emails | Or use `RESEND_API_KEY` instead |
+| `RESEND_API_KEY` | Optional | Production email alternative |
 | `OPENAI_API_KEY` | Optional | Omit for rules-based plans |
-| `UPSTASH_REDIS_REST_URL` | Auto | Injected when Redis is connected |
-| `UPSTASH_REDIS_REST_TOKEN` | Auto | Injected when Redis is connected |
+| `STRIPE_SECRET_KEY` | For real payments | Omit while `SKIP_PAYWALL` is on |
 
 4. **Deploy** — Vercel runs `npm run build` automatically. No extra config needed.
 
@@ -149,10 +149,10 @@ All config is centralized in `src/lib/config.ts` and driven by env vars — see
 
 ## Production notes
 
-- Order store: **Upstash Redis** in production, local `.data/` file in dev.
+- Order store: **Supabase** in production, local `.data/` file in dev.
 - Stripe payment is verified server-side before any plan is generated.
 - `/api/cron/deliver` remains as a manual fallback only (not scheduled).
 
 ## Tech
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Upstash Redis · Resend.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Supabase · Nodemailer / Resend.
