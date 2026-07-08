@@ -55,6 +55,22 @@ const initial: FormState = {
 const PRICE_LABEL = process.env.NEXT_PUBLIC_PRICE_LABEL ?? "$10";
 const SKIP_PAYWALL = process.env.NEXT_PUBLIC_SKIP_PAYWALL !== "0";
 
+async function parseApiResponse(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  if (!text.trim()) {
+    throw new Error(
+      res.status === 503
+        ? "Server storage is not configured yet. Add Upstash Redis on Vercel."
+        : `Server returned an empty response (${res.status}). Please try again.`
+    );
+  }
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error("Server returned an invalid response. Please try again.");
+  }
+}
+
 type StepKey =
   | "name"
   | "email"
@@ -183,18 +199,22 @@ export function PlanFlow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const orderData = await orderRes.json();
-      if (!orderRes.ok) throw new Error(orderData.error ?? "Something went wrong");
+      const orderData = await parseApiResponse(orderRes);
+      if (!orderRes.ok) {
+        throw new Error(String(orderData.error ?? "Something went wrong"));
+      }
 
       const checkoutRes = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId: orderData.orderId }),
       });
-      const checkout = await checkoutRes.json();
-      if (!checkoutRes.ok) throw new Error(checkout.error ?? "Payment setup failed");
+      const checkout = await parseApiResponse(checkoutRes);
+      if (!checkoutRes.ok) {
+        throw new Error(String(checkout.error ?? "Payment setup failed"));
+      }
 
-      window.location.href = checkout.url;
+      window.location.href = String(checkout.url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
       setSubmitting(false);

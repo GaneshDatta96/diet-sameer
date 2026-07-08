@@ -23,14 +23,27 @@ function getRedis(): Redis | null {
   return null;
 }
 
+/** Vercel serverless has a read-only filesystem — Redis is required there. */
+function requireStorage(): void {
+  if (!getRedis() && process.env.VERCEL === "1") {
+    throw new Error("MISSING_REDIS");
+  }
+}
+
 async function readAll(): Promise<Record<string, Order>> {
   const redis = getRedis();
   if (redis) {
-    const raw = await redis.get<string>(ORDERS_KEY);
+    const raw = await redis.get<string | Record<string, Order>>(ORDERS_KEY);
     if (!raw) return {};
-    return typeof raw === "string"
-      ? (JSON.parse(raw) as Record<string, Order>)
-      : (raw as Record<string, Order>);
+    if (typeof raw === "string") {
+      try {
+        return JSON.parse(raw) as Record<string, Order>;
+      } catch {
+        console.error("[store] corrupt Redis orders payload");
+        return {};
+      }
+    }
+    return raw as Record<string, Order>;
   }
 
   try {
@@ -42,6 +55,7 @@ async function readAll(): Promise<Record<string, Order>> {
 }
 
 async function writeAll(orders: Record<string, Order>): Promise<void> {
+  requireStorage();
   const redis = getRedis();
   if (redis) {
     await redis.set(ORDERS_KEY, JSON.stringify(orders));

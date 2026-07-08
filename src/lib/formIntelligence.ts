@@ -153,10 +153,10 @@ export function filterFoodList(items: string[]): string[] {
 
 /** For review screens — show parsed foods or a dash when empty/filler. */
 export function formatFoodFieldForDisplay(s: string): string {
-  const items = parseFoodList(s);
-  if (items.length) return items.join(", ");
-  if (!s.trim() || isFillerField(s)) return "—";
-  return s.trim();
+  const trimmed = s.trim();
+  if (!trimmed || isFillerField(trimmed)) return "—";
+  const items = parseFoodList(trimmed);
+  return items.length ? items.join(", ") : "—";
 }
 
 interface Signal {
