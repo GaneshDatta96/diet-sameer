@@ -41,7 +41,7 @@ The generated plan email is printed to the server console when no
 3. **Checkout** — $10 (mock or Stripe Checkout).
 4. **Confirmation** (`/confirm`) — "your plan is being crafted, arrives in 8–12
    hours" + immediate book-a-call CTA.
-5. **Delivery** — the plan is emailed after the randomized delay.
+5. **Delivery** — Resend sends the plan email at the scheduled time.
 
 ## How plans are generated
 
@@ -55,82 +55,40 @@ The food guide itself is encoded in `src/lib/foodGuide.ts`.
 
 ## Delayed delivery
 
-- On payment, the plan is generated immediately and stored with a `deliverAt`
-  timestamp (now + random 8–12h).
-- A best-effort in-process timer handles single-server/local delivery.
-- For reliable production delivery, the cron endpoint `/api/cron/deliver` sends
-  everything that's due. `vercel.json` schedules it every 15 minutes; protect it
-  with the `CRON_SECRET` env var.
+- On payment, the plan is generated immediately and **scheduled with Resend**
+  (`scheduled_at`) for 8–12 hours later.
+- **No cron job required** — works on Vercel Hobby.
+- Locally (no Resend key), a console mock logs the email after the delay.
+
+## Deploy to Vercel
+
+1. **Import** the GitHub repo in [Vercel](https://vercel.com) (framework: Next.js).
+2. **Add Redis** — Vercel dashboard → Storage → Redis (Upstash) → connect to project.
+3. **Set environment variables** in Project Settings:
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `NEXT_PUBLIC_APP_URL` | Yes | Your production URL, e.g. `https://your-app.vercel.app` |
+| `RESEND_API_KEY` | Yes | Schedules delayed plan emails |
+| `RESEND_FROM` | Yes | Verified sender in Resend |
+| `STRIPE_SECRET_KEY` | For real payments | Omit for mock checkout |
+| `OPENAI_API_KEY` | Optional | Omit for rules-based plans |
+| `UPSTASH_REDIS_REST_URL` | Auto | Injected when Redis is connected |
+| `UPSTASH_REDIS_REST_TOKEN` | Auto | Injected when Redis is connected |
+
+4. **Deploy** — Vercel runs `npm run build` automatically. No extra config needed.
 
 ## Configuration
 
 All config is centralized in `src/lib/config.ts` and driven by env vars — see
-`.env.example` for the full list (pricing, delivery window, Stripe, OpenAI,
-Resend, cron secret).
+`.env.example` for the full list.
 
 ## Production notes
 
-- The order store (`src/lib/store.ts`) uses a local JSON file under `.data/`
-  for development. On Cloudflare Workers it uses the `ORDER_STORE` KV binding
-  configured in `wrangler.jsonc`. Swap for Postgres/Supabase if you need richer
-  querying at scale.
-- With Stripe enabled, payment is verified server-side against the Checkout
-  Session before any plan is generated or delivered.
-- `/api/preview` (sample generation without payment) is disabled in production
-  unless `ALLOW_PREVIEW=1`.
-
-## Deploy to Cloudflare Workers
-
-This app uses Next.js API routes, delayed delivery, and persistent order
-storage. **Do not deploy with Cloudflare Pages' default Next.js preset** — it
-expects static output and will fail or drop server features.
-
-Use the OpenNext Cloudflare adapter instead:
-
-```bash
-# 1. Create a KV namespace for orders and paste the id into wrangler.jsonc
-npx wrangler kv namespace create ORDER_STORE
-
-# 2. Set production env vars in the Cloudflare dashboard (or wrangler secrets)
-#    NEXT_PUBLIC_APP_URL, STRIPE_SECRET_KEY, RESEND_API_KEY, CRON_SECRET, etc.
-
-# 3. Build and deploy
-npm run deploy
-```
-
-For Git-connected Cloudflare Workers builds, set **exactly**:
-
-| Setting | Command |
-|---------|---------|
-| **Build command** | `npm run build` |
-| **Deploy command** | `npx opennextjs-cloudflare deploy` |
-
-`npm run build` runs OpenNext (not plain `next build`). The deploy step must use
-`opennextjs-cloudflare deploy`, not `npx wrangler deploy` alone.
-
-If you still see `> next build` in the logs, Cloudflare is on an old commit or
-the build command was overridden in the dashboard — fix it to `npm run build`.
-
-Clear the **build cache** in Cloudflare settings before redeploying.
-
-`build:cf` runs `populateCache` so pre-rendered pages (`/`, `/plan`, `/confirm`) are
-copied into the static asset bundle. Skipping that step causes **404 on every page**.
-
-**Do not use Cloudflare Pages** with the default Next.js preset for this app — use
-**Cloudflare Workers** with OpenNext instead. Pages (`*.pages.dev`) will 404 because
-this app needs server API routes and the OpenNext worker bundle.
-
-Schedule `/api/cron/deliver` every 15 minutes (cron-job.org, GitHub Actions,
-or a Cloudflare Cron Trigger hitting the URL with `CRON_SECRET`). The
-`vercel.json` cron schedule only applies on Vercel.
-
-Local preview in the Workers runtime:
-
-```bash
-cp .dev.vars.example .dev.vars
-npm run preview
-```
+- Order store: **Upstash Redis** in production, local `.data/` file in dev.
+- Stripe payment is verified server-side before any plan is generated.
+- `/api/cron/deliver` remains as a manual fallback only (not scheduled).
 
 ## Tech
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Upstash Redis · Resend.

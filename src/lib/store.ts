@@ -1,38 +1,36 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { Redis } from "@upstash/redis";
 import { promises as fs } from "fs";
 import path from "path";
 import { Order } from "./types";
 
 /**
- * Order store with two backends:
- * - Cloudflare KV (`ORDER_STORE` binding) in production Workers
- * - Local JSON file under `.data/` for `next dev` and single-node runs
+ * Order store:
+ * - Upstash Redis in production (add Redis from Vercel Marketplace / Storage)
+ * - Local JSON file under `.data/` for `next dev`
  */
 
 const ORDERS_KEY = "orders";
 const DATA_DIR = path.join(process.cwd(), ".data");
 const FILE = path.join(DATA_DIR, "orders.json");
 
-interface OrderKv {
-  get(key: string, type: "text"): Promise<string | null>;
-  put(key: string, value: string): Promise<void>;
-}
-
-async function getKv(): Promise<OrderKv | null> {
-  try {
-    const { env } = await getCloudflareContext({ async: true });
-    return env.ORDER_STORE ?? null;
-  } catch {
-    return null;
+function getRedis(): Redis | null {
+  if (
+    process.env.UPSTASH_REDIS_REST_URL &&
+    process.env.UPSTASH_REDIS_REST_TOKEN
+  ) {
+    return Redis.fromEnv();
   }
+  return null;
 }
 
 async function readAll(): Promise<Record<string, Order>> {
-  const kv = await getKv();
-  if (kv) {
-    const raw = await kv.get(ORDERS_KEY, "text");
+  const redis = getRedis();
+  if (redis) {
+    const raw = await redis.get<string>(ORDERS_KEY);
     if (!raw) return {};
-    return JSON.parse(raw) as Record<string, Order>;
+    return typeof raw === "string"
+      ? (JSON.parse(raw) as Record<string, Order>)
+      : (raw as Record<string, Order>);
   }
 
   try {
@@ -44,9 +42,9 @@ async function readAll(): Promise<Record<string, Order>> {
 }
 
 async function writeAll(orders: Record<string, Order>): Promise<void> {
-  const kv = await getKv();
-  if (kv) {
-    await kv.put(ORDERS_KEY, JSON.stringify(orders));
+  const redis = getRedis();
+  if (redis) {
+    await redis.set(ORDERS_KEY, JSON.stringify(orders));
     return;
   }
 
@@ -79,7 +77,7 @@ export async function updateOrder(
   return updated;
 }
 
-/** Orders that are paid and past their scheduled delivery time. */
+/** Orders that are paid, have a plan, and are past deliverAt (cron fallback only). */
 export async function getDueOrders(now = Date.now()): Promise<Order[]> {
   const all = await readAll();
   return Object.values(all).filter(
@@ -87,6 +85,7 @@ export async function getDueOrders(now = Date.now()): Promise<Order[]> {
       o.status === "paid" &&
       o.plan != null &&
       o.deliverAt != null &&
-      o.deliverAt <= now
+      o.deliverAt <= now &&
+      !o.resendEmailId
   );
 }

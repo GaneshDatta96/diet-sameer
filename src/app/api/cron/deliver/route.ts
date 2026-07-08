@@ -3,9 +3,8 @@ import { config } from "@/lib/config";
 import { deliverDueOrders } from "@/lib/deliver";
 
 /**
- * Delivery cron. Point a scheduler (Vercel Cron, GitHub Actions, cron-job.org)
- * at this every ~15 minutes. Protect it by setting CRON_SECRET and passing it
- * as ?secret= or an Authorization: Bearer header.
+ * Manual delivery fallback for orders that were not scheduled via Resend.
+ * Not required in normal operation — Resend scheduled_at handles delivery.
  */
 async function handle(req: Request) {
   if (config.cronSecret) {

@@ -118,4 +118,6 @@ export interface Order {
   deliverAt?: number;
   deliveredAt?: number;
   paymentRef?: string;
+  /** Resend message id when delivery is scheduled via scheduled_at. */
+  resendEmailId?: string;
 }

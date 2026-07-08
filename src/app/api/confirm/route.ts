@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { config, deliveryWindowHours, randomDeliveryDelayMs } from "@/lib/config";
+import { sendPlanEmail } from "@/lib/email";
 import { getOrder, updateOrder } from "@/lib/store";
 import { generatePlan } from "@/lib/ai";
-import { scheduleDelivery } from "@/lib/deliver";
 
 /**
- * Confirm payment, generate the plan, and schedule delayed delivery.
+ * Confirm payment, generate the plan, and schedule delivery via Resend.
  * - Stripe mode: verifies the Checkout Session was actually paid.
  * - Mock mode: accepts directly (only when Stripe is not configured).
  */
@@ -26,7 +26,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  // Idempotent: if already processed, just return the schedule.
   if (order.status === "paid" || order.status === "delivered") {
     return NextResponse.json({
       ok: true,
@@ -36,7 +35,6 @@ export async function POST(req: Request) {
     });
   }
 
-  // Verify payment.
   let paymentRef: string | undefined;
   if (config.stripe.enabled) {
     if (!body?.sessionId) {
@@ -48,25 +46,37 @@ export async function POST(req: Request) {
     }
     paymentRef = body.sessionId;
   } else {
-    // Mock mode only valid when Stripe isn't configured.
     if (!body?.mock) {
       return NextResponse.json({ error: "Payment required" }, { status: 402 });
     }
     paymentRef = "mock";
   }
 
-  // Generate the plan now, but hold delivery for the "crafting" window.
   const plan = await generatePlan(order.intake);
   const deliverAt = Date.now() + randomDeliveryDelayMs();
+  const firstName = order.intake.name?.split(" ")[0] ?? "there";
+
+  const email = await sendPlanEmail({
+    to: order.intake.email,
+    firstName,
+    plan,
+    scheduledAt: deliverAt,
+  });
+
+  if (!email.ok) {
+    return NextResponse.json(
+      { error: "Could not schedule your plan email. Please contact support." },
+      { status: 502 }
+    );
+  }
 
   await updateOrder(orderId, {
     status: "paid",
     plan,
     deliverAt,
     paymentRef,
+    resendEmailId: email.id,
   });
-
-  scheduleDelivery(orderId, deliverAt);
 
   return NextResponse.json({
     ok: true,
@@ -87,7 +97,11 @@ async function verifyStripeSession(
       }
     );
     if (!res.ok) return { ok: false };
-    const session = await res.json();
+    const session = (await res.json()) as {
+      payment_status?: string;
+      client_reference_id?: string;
+      metadata?: { orderId?: string };
+    };
     const paid = session.payment_status === "paid";
     const matches =
       session.client_reference_id === orderId ||
