@@ -7,6 +7,7 @@ import {
   MealPlan,
   Restriction,
 } from "./types";
+import { filterFoodList, parseFoodList } from "./formIntelligence";
 
 /**
  * Deterministic, rules-based 7-day plan generator grounded in the IBD
@@ -363,13 +364,9 @@ export function generateMealPlan(
   const wantsLose = intake.goal === "lose-weight";
 
   const dislikeWords = [
-    ...(intake.dislikes || "")
-      .toLowerCase()
-      .split(/[,;\n]/)
-      .map((s) => s.trim()),
-    // Foods the digest normalized out of the free text.
-    ...(brief?.avoidFoods ?? []),
-  ].filter(Boolean);
+    ...parseFoodList(intake.dislikes || ""),
+    ...filterFoodList(brief?.avoidFoods ?? []),
+  ];
 
   function allowed(t: Template): boolean {
     if (!t.diet.includes(intake.dietType)) return false;
@@ -561,9 +558,10 @@ function buildPersonalNotes(intake: Intake, brief?: IntakeBrief): string[] {
       "Dairy is out, so fats come from tallow, ghee-free cooking and egg yolks. Bone broth becomes even more useful for you."
     );
   }
-  if (intake.loves && intake.loves.trim()) {
+  const enjoys = parseFoodList(intake.loves || "");
+  if (enjoys.length) {
     notes.push(
-      `You mentioned you enjoy ${intake.loves.trim()} — where those fit the green or yellow tiers, lean into them; where they don't, that's a great thing to talk through on a call.`
+      `You mentioned you enjoy ${enjoys.join(", ")} — where those fit the green or yellow tiers, lean into them; where they don't, that's a great thing to talk through on a call.`
     );
   }
   // Safety flags always earn a stronger, explicit consult nudge.

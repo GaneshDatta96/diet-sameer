@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { heuristicFromPartial } from "./formIntelligence";
+import { heuristicFromPartial, filterFoodList } from "./formIntelligence";
 import { Intake, IntakeBrief, Restriction } from "./types";
 
 /**
@@ -47,7 +47,7 @@ Return ONLY valid JSON (no markdown) matching:
   "summary": string                // one warm sentence describing this person and what they need.
 }
 
-Be conservative: if unsure whether something is a hard restriction, put the food in avoidFoods rather than inferredRestrictions. Keep arrays short and de-duplicated.`;
+Be conservative: if unsure whether something is a hard restriction, put the food in avoidFoods rather than inferredRestrictions. Ignore meaningless filler answers ("no", "nothing", "none", "n/a", "not sure", etc.) — treat those fields as empty. Keep arrays short and de-duplicated.`;
 }
 
 async function digestWithOpenAI(intake: Intake): Promise<IntakeBrief> {
@@ -121,8 +121,8 @@ function normalizeBrief(
   ) as Restriction[];
 
   return {
-    avoidFoods: strArr(raw.avoidFoods),
-    emphasizeFoods: strArr(raw.emphasizeFoods),
+    avoidFoods: filterFoodList(strArr(raw.avoidFoods)),
+    emphasizeFoods: filterFoodList(strArr(raw.emphasizeFoods)),
     inferredRestrictions: inferred,
     safetyFlags:
       Array.isArray(raw.safetyFlags)

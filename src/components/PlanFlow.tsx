@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   analyzeFormInput,
   firstName,
+  formatFoodFieldForDisplay,
   greeting,
   relevantRestrictions,
   restrictionLabel,
@@ -957,8 +958,8 @@ function Review({
       : []),
     ["Main goal", pretty(form.goal)],
     ["Restrictions", form.restrictions.map(pretty).join(", ") || "None"],
-    ["Enjoys", form.loves || "—"],
-    ["Avoids", form.dislikes || "—"],
+    ["Enjoys", formatFoodFieldForDisplay(form.loves)],
+    ["Avoids", formatFoodFieldForDisplay(form.dislikes)],
   ];
 
   return (

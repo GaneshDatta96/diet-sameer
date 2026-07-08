@@ -39,6 +39,126 @@ const RESTRICTION_LABELS: Record<Restriction, string> = {
   "no-caffeine": "No caffeine",
 };
 
+const FILLER_EXACT = new Set([
+  "no",
+  "nothing",
+  "none",
+  "n/a",
+  "na",
+  "nil",
+  "nope",
+  "nah",
+  "idk",
+  "dunno",
+  "skip",
+  "pass",
+  "-",
+  "--",
+  ".",
+  "...",
+  "whatever",
+  "anything",
+  "everything",
+  "all",
+  "unsure",
+  "not sure",
+  "no idea",
+  "no preference",
+  "no preferences",
+  "negative",
+  "zero",
+  "empty",
+  "blank",
+  "not applicable",
+  "not really",
+  "nothing really",
+  "no thanks",
+  "no comment",
+  "no specific",
+  "no particular",
+  "don't know",
+  "dont know",
+  "doesn't matter",
+  "doesnt matter",
+  "don't mind",
+  "dont mind",
+  "anything goes",
+  "all good",
+  "same",
+  "none really",
+  "nothing specific",
+  "nothing particular",
+  "no strong preference",
+  "no strong preferences",
+]);
+
+const FILLER_PATTERNS = [
+  /^no(things?)?\s*(really|particular|specific|preference|preferences)?$/i,
+  /^n\/?a$/i,
+  /^not\s+(sure|really|applicable|much)$/i,
+  /^don'?t\s+(know|have|mind|care)$/i,
+  /^doesn'?t\s+matter$/i,
+  /^nothing\s+(really|specific|particular|comes\s+to\s+mind)$/i,
+  /^none\s*(really|specific|particular)?$/i,
+  /^all\s+good$/i,
+  /^i\s+don'?t\s+(know|have|really)/i,
+  /^can'?t\s+think/i,
+  /^no\s+strong/i,
+  /^not\s+really$/i,
+  /^nothing\s+to\s+(add|say)$/i,
+];
+
+function normalizeToken(token: string): string {
+  return token.trim().toLowerCase().replace(/[.!?,…]+$/, "");
+}
+
+/** True when a single token is empty filler ("no", "nothing", "n/a", etc.). */
+export function isFillerToken(token: string): boolean {
+  const t = normalizeToken(token);
+  if (!t || t.length < 2) return true;
+  if (FILLER_EXACT.has(t)) return true;
+  return FILLER_PATTERNS.some((p) => p.test(t));
+}
+
+/** True when the whole free-text field is only filler or blank. */
+export function isFillerField(s: string): boolean {
+  const trimmed = s.trim();
+  if (!trimmed) return true;
+  const normalized = normalizeToken(trimmed);
+  if (FILLER_EXACT.has(normalized)) return true;
+  if (FILLER_PATTERNS.some((p) => p.test(normalized))) return true;
+  const items = trimmed.split(/[,;\n]/).map((w) => w.trim()).filter(Boolean);
+  return items.length > 0 && items.every(isFillerToken);
+}
+
+/** Parse comma/newline-separated foods, dropping meaningless tokens. */
+export function parseFoodList(s: string): string[] {
+  if (isFillerField(s)) return [];
+  return Array.from(
+    new Set(
+      s
+        .split(/[,;\n]/)
+        .map(normalizeToken)
+        .filter((w) => w.length > 1 && !isFillerToken(w))
+    )
+  ).slice(0, 20);
+}
+
+/** Drop filler tokens from an already-normalized list (e.g. AI digest output). */
+export function filterFoodList(items: string[]): string[] {
+  return Array.from(
+    new Set(items.map(normalizeToken).filter((w) => w.length > 1 && !isFillerToken(w)))
+  ).slice(0, 20);
+}
+
+/** For review screens — show parsed foods or a dash when empty/filler. */
+export function formatFoodFieldForDisplay(s: string): string {
+  const items = parseFoodList(s);
+  if (items.length) return items.join(", ");
+  if (!s.trim() || isFillerField(s)) return "—";
+  return s.trim();
+}
+
 interface Signal {
   restriction: Restriction;
   triggers: string[];
@@ -108,8 +228,8 @@ export function analyzeFormInput(input: PartialFormInput): FormInsights {
   const free = `${loves} ${dislikes} ${notes}`;
   const explicit = new Set((input.restrictions ?? []) as Restriction[]);
 
-  const avoidFoods = splitList(input.dislikes || "");
-  const emphasizeFoods = splitList(input.loves || "");
+  const avoidFoods = parseFoodList(input.dislikes || "");
+  const emphasizeFoods = parseFoodList(input.loves || "");
 
   const inferred = new Set<Restriction>();
   const hasIntoleranceCue = INTOLERANCE_CUES.some((c) => free.includes(c));
@@ -186,8 +306,17 @@ function buildAcknowledgments(
   }
   for (const c of ctx.contradictions) lines.push(c);
   for (const s of ctx.safetyFlags.slice(0, 2)) lines.push(s);
-  if (first && lines.length === 0 && (input.loves || input.dislikes)) {
-    lines.push(`${first}, tell us in plain language — we'll read between the lines.`);
+  if (first && lines.length === 0) {
+    const lovesText = (input.loves || "").trim();
+    const dislikesText = (input.dislikes || "").trim();
+    const typedSomething = lovesText || dislikesText;
+    const onlyFiller =
+      typedSomething &&
+      (!lovesText || isFillerField(lovesText)) &&
+      (!dislikesText || isFillerField(dislikesText));
+    if (typedSomething && !onlyFiller) {
+      lines.push(`${first}, tell us in plain language — we'll read between the lines.`);
+    }
   }
   return lines.slice(0, 5);
 }
@@ -239,8 +368,8 @@ function detectContradictions(input: PartialFormInput): string[] {
     issues.push("You enjoy dairy but marked dairy-free — we'll follow the restriction.");
   }
 
-  const overlap = splitList(input.loves || "").filter((f) =>
-    splitList(input.dislikes || "").some((d) => d.includes(f) || f.includes(d))
+  const overlap = parseFoodList(input.loves || "").filter((f) =>
+    parseFoodList(input.dislikes || "").some((d) => d.includes(f) || f.includes(d))
   );
   if (overlap.length) {
     issues.push(`"${overlap[0]}" appears in both enjoys and avoids — we'll leave it out to be safe.`);
@@ -296,17 +425,6 @@ export function greeting(name?: string): string {
 function containsWord(haystack: string, word: string): boolean {
   const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`\\b${escaped}\\b`, "i").test(haystack);
-}
-
-function splitList(s: string): string[] {
-  return Array.from(
-    new Set(
-      s
-        .split(/[,;\n]/)
-        .map((w) => w.trim().toLowerCase())
-        .filter((w) => w.length > 1)
-    )
-  ).slice(0, 20);
 }
 
 /** Heuristic digest payload — shared with server digest.ts */
