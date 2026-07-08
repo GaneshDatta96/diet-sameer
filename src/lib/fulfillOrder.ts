@@ -42,7 +42,11 @@ export async function fulfillOrder(
   });
 
   if (!email.ok) {
-    return { ok: false, error: "Could not schedule plan email" };
+    return {
+      ok: false,
+      error:
+        "Could not send the plan email. Check GMAIL_USER + GMAIL_APP_PASSWORD (or RESEND_API_KEY) on the server.",
+    };
   }
 
   await updateOrder(orderId, {
