@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { buildKajabiCheckoutUrl } from "@/lib/kajabi";
 import { config } from "@/lib/config";
 import { getOrder } from "@/lib/store";
 
 /**
- * Create a checkout. With a Stripe key we create a real Checkout Session;
- * without one we return a mock URL so the whole flow works during review.
+ * Create a checkout session.
+ * Priority: Kajabi offer → Stripe → mock (local review).
  */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -18,8 +19,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
+  if (config.kajabi.enabled) {
+    return NextResponse.json({
+      kajabi: true,
+      url: buildKajabiCheckoutUrl(orderId, order.intake.email),
+    });
+  }
+
   if (!config.stripe.enabled) {
-    // Mock mode: skip straight to the confirmation page.
     return NextResponse.json({
       mock: true,
       url: `/confirm?orderId=${orderId}&mock=1`,
@@ -68,7 +75,7 @@ export async function POST(req: Request) {
       console.error("[checkout] stripe error:", res.status, text);
       return NextResponse.json({ error: "Payment setup failed" }, { status: 502 });
     }
-    const session = await res.json();
+    const session = (await res.json()) as { url?: string };
     return NextResponse.json({ url: session.url });
   } catch (err) {
     console.error("[checkout] error:", err);

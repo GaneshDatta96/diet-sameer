@@ -58,7 +58,71 @@ The food guide itself is encoded in `src/lib/foodGuide.ts`.
 - On payment, the plan is generated immediately and **scheduled with Resend**
   (`scheduled_at`) for 8–12 hours later.
 - **No cron job required** — works on Vercel Hobby.
-- Locally (no Resend key), a console mock logs the email after the delay.
+- **Kajabi** collects payment; **Resend** delivers the personalized plan email.
+
+## Kajabi + Vercel setup
+
+### What each tool does
+
+| Tool | Role |
+|------|------|
+| **This app** | Questionnaire, plan generation, confirmation page |
+| **Kajabi** | $10 checkout, payment processing, contact CRM, nurture emails |
+| **Resend** | Sends the personalized 7-day meal plan (Kajabi can't generate dynamic plans) |
+| **Upstash Redis** | Stores orders between checkout and delivery |
+
+### 1. Create the offer in Kajabi
+
+- Sales → Pricing → New Offer → $10 one-time offer
+- Copy the checkout URL → `KAJABI_OFFER_CHECKOUT_URL`
+- Copy the offer ID → `KAJABI_OFFER_ID`
+
+### 2. Post-purchase redirect
+
+In the offer's **Purchase flow** → Post-purchase → Custom URL:
+
+```
+https://YOUR-APP.vercel.app/confirm?orderId={order_id}&kajabi=1
+```
+
+If Kajabi doesn't support `{order_id}`, use:
+
+```
+https://YOUR-APP.vercel.app/confirm?orderId=ORDER_ID&kajabi=1
+```
+
+and set the redirect manually — the webhook matches orders by email as a fallback.
+
+### 3. Payment webhook
+
+Kajabi → Settings → Integrations → Webhooks → **Payment Succeeded**:
+
+```
+https://YOUR-APP.vercel.app/api/kajabi/webhook?secret=YOUR_KAJABI_WEBHOOK_SECRET
+```
+
+This triggers plan generation and schedules the Resend email.
+
+### 4. Optional: API sync
+
+Kajabi → Settings → Public API → create credentials:
+
+- `KAJABI_CLIENT_ID` / `KAJABI_CLIENT_SECRET`
+- `KAJABI_SITE_ID` (from API or dashboard)
+- `KAJABI_TAG_ID` — tag buyers for email automations (book-a-call sequence, etc.)
+
+### 5. Environment variables (Vercel)
+
+| Variable | Required |
+|----------|----------|
+| `KAJABI_OFFER_CHECKOUT_URL` | Yes (for Kajabi checkout) |
+| `KAJABI_WEBHOOK_SECRET` | Yes |
+| `RESEND_API_KEY` | Yes |
+| `RESEND_FROM` | Yes |
+| `NEXT_PUBLIC_APP_URL` | Yes |
+| `KAJABI_OFFER_ID` | Recommended |
+| `KAJABI_CLIENT_ID/SECRET/SITE_ID` | Optional (CRM sync) |
+| `STRIPE_SECRET_KEY` | Only if not using Kajabi |
 
 ## Deploy to Vercel
 

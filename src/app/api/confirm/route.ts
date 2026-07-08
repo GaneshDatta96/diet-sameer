@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
-import { config, deliveryWindowHours, randomDeliveryDelayMs } from "@/lib/config";
-import { sendPlanEmail } from "@/lib/email";
-import { getOrder, updateOrder } from "@/lib/store";
-import { generatePlan } from "@/lib/ai";
+import { config, deliveryWindowHours } from "@/lib/config";
+import { fulfillOrder, fulfillResponseBody } from "@/lib/fulfillOrder";
+import { getOrder } from "@/lib/store";
 
 /**
- * Confirm payment, generate the plan, and schedule delivery via Resend.
- * - Stripe mode: verifies the Checkout Session was actually paid.
- * - Mock mode: accepts directly (only when Stripe is not configured).
+ * Confirm payment and fulfill the order.
+ * - Kajabi: webhook fulfills; this endpoint polls until paid or returns status.
+ * - Stripe: verifies Checkout Session, then fulfills.
+ * - Mock: fulfills immediately when Stripe/Kajabi are not configured.
  */
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
     orderId?: string;
     sessionId?: string;
     mock?: boolean;
+    kajabi?: boolean;
   } | null;
 
   const orderId = body?.orderId;
@@ -35,6 +36,22 @@ export async function POST(req: Request) {
     });
   }
 
+  if (body?.kajabi) {
+    const fresh = await getOrder(orderId);
+    if (fresh?.status === "paid" || fresh?.status === "delivered") {
+      return NextResponse.json({
+        ok: true,
+        deliverAt: fresh.deliverAt,
+        window: deliveryWindowHours(),
+        alreadyDone: true,
+      });
+    }
+    return NextResponse.json(
+      { ok: false, waiting: true, message: "Waiting for payment confirmation…" },
+      { status: 202 }
+    );
+  }
+
   let paymentRef: string | undefined;
   if (config.stripe.enabled) {
     if (!body?.sessionId) {
@@ -52,37 +69,15 @@ export async function POST(req: Request) {
     paymentRef = "mock";
   }
 
-  const plan = await generatePlan(order.intake);
-  const deliverAt = Date.now() + randomDeliveryDelayMs();
-  const firstName = order.intake.name?.split(" ")[0] ?? "there";
-
-  const email = await sendPlanEmail({
-    to: order.intake.email,
-    firstName,
-    plan,
-    scheduledAt: deliverAt,
-  });
-
-  if (!email.ok) {
+  const result = await fulfillOrder(orderId, paymentRef);
+  if (!result.ok) {
     return NextResponse.json(
-      { error: "Could not schedule your plan email. Please contact support." },
+      { error: result.error ?? "Could not fulfill your order" },
       { status: 502 }
     );
   }
 
-  await updateOrder(orderId, {
-    status: "paid",
-    plan,
-    deliverAt,
-    paymentRef,
-    resendEmailId: email.id,
-  });
-
-  return NextResponse.json({
-    ok: true,
-    deliverAt,
-    window: deliveryWindowHours(),
-  });
+  return NextResponse.json(fulfillResponseBody(result));
 }
 
 async function verifyStripeSession(

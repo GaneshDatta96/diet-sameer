@@ -55,6 +55,22 @@ export const config = {
     },
   },
 
+  kajabi: {
+    checkoutUrl: process.env.KAJABI_OFFER_CHECKOUT_URL ?? "",
+    offerId: process.env.KAJABI_OFFER_ID ?? "",
+    webhookSecret: process.env.KAJABI_WEBHOOK_SECRET ?? "",
+    clientId: process.env.KAJABI_CLIENT_ID ?? "",
+    clientSecret: process.env.KAJABI_CLIENT_SECRET ?? "",
+    siteId: process.env.KAJABI_SITE_ID ?? "",
+    tagId: process.env.KAJABI_TAG_ID ?? "",
+    get enabled() {
+      return Boolean(this.checkoutUrl);
+    },
+    get apiEnabled() {
+      return Boolean(this.clientId && this.clientSecret);
+    },
+  },
+
   /** Shared secret to protect the delivery cron endpoint. */
   cronSecret: process.env.CRON_SECRET ?? "",
 

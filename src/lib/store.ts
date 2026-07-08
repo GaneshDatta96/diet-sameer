@@ -52,6 +52,21 @@ async function writeAll(orders: Record<string, Order>): Promise<void> {
   await fs.writeFile(FILE, JSON.stringify(orders, null, 2), "utf8");
 }
 
+/** Find the most recent pending order for an email (Kajabi webhook matching). */
+export async function findPendingOrderByEmail(
+  email: string
+): Promise<Order | undefined> {
+  const all = await readAll();
+  const normalized = email.trim().toLowerCase();
+  return Object.values(all)
+    .filter(
+      (o) =>
+        o.status === "pending" &&
+        o.intake.email.trim().toLowerCase() === normalized
+    )
+    .sort((a, b) => b.createdAt - a.createdAt)[0];
+}
+
 export async function saveOrder(order: Order): Promise<Order> {
   const all = await readAll();
   all[order.id] = order;

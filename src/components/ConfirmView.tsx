@@ -9,6 +9,27 @@ interface ConfirmResult {
   ok: boolean;
   deliverAt?: number;
   window?: { min: number; max: number };
+  waiting?: boolean;
+}
+
+async function pollUntilFulfilled(orderId: string, kajabi: boolean) {
+  const maxAttempts = 30;
+  for (let i = 0; i < maxAttempts; i++) {
+    const res = await fetch("/api/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, kajabi: kajabi || undefined }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) return data as ConfirmResult;
+    if (res.status !== 202) {
+      throw new Error(data.error ?? "Could not confirm your order");
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error(
+    "Payment is still processing. Check your email — your plan will arrive shortly."
+  );
 }
 
 export function ConfirmView() {
@@ -16,6 +37,7 @@ export function ConfirmView() {
   const orderId = params.get("orderId");
   const sessionId = params.get("session_id");
   const mock = params.get("mock");
+  const kajabi = params.get("kajabi") === "1";
 
   const [state, setState] = useState<"working" | "done" | "error">("working");
   const [result, setResult] = useState<ConfirmResult | null>(null);
@@ -27,17 +49,22 @@ export function ConfirmView() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderId,
-            sessionId: sessionId ?? undefined,
-            mock: mock === "1",
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Could not confirm your order");
+        const data = kajabi
+          ? await pollUntilFulfilled(orderId, true)
+          : await (async () => {
+              const res = await fetch("/api/confirm", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  orderId,
+                  sessionId: sessionId ?? undefined,
+                  mock: mock === "1",
+                }),
+              });
+              const json = await res.json();
+              if (!res.ok) throw new Error(json.error ?? "Could not confirm your order");
+              return json as ConfirmResult;
+            })();
         if (cancelled) return;
         setResult(data);
         setState("done");
@@ -56,7 +83,7 @@ export function ConfirmView() {
     return () => {
       cancelled = true;
     };
-  }, [orderId, sessionId, mock]);
+  }, [orderId, sessionId, mock, kajabi]);
 
   if (!orderId) {
     return (

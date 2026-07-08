@@ -273,7 +273,7 @@ export function PlanFlow() {
                 </button>
               ) : (
                 <button
-                  onClick={next}
+                  onClick={() => next()}
                   className="rounded-full bg-teal-deep px-7 py-3 font-display font-bold text-white shadow-sm transition hover:brightness-110"
                 >
                   {current.key === "understood" ? "Looks right →" : "OK →"}
