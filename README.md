@@ -100,8 +100,10 @@ npm run deploy
 
 For Git-connected Cloudflare Workers builds, set:
 
-- **Build command:** `npm run build:cf`
-- **Deploy command:** `npx opennextjs-cloudflare deploy` (or use Workers Builds)
+- **Build command:** `npm run build` (auto-detects Cloudflare CI and runs OpenNext)
+- **Deploy command:** `npx wrangler deploy`
+
+Or explicitly: `npm run build:cf` then `npx wrangler deploy`.
 
 `build:cf` runs `populateCache` so pre-rendered pages (`/`, `/plan`, `/confirm`) are
 copied into the static asset bundle. Skipping that step causes **404 on every page**.
