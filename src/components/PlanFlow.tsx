@@ -149,11 +149,13 @@ export function PlanFlow() {
     }
   }, [current.key, form]);
 
-  const next = useCallback(() => {
-    const err = validateStep();
-    if (err) {
-      setError(err);
-      return;
+  const next = useCallback((opts?: { skipValidation?: boolean }) => {
+    if (!opts?.skipValidation) {
+      const err = validateStep();
+      if (err) {
+        setError(err);
+        return;
+      }
     }
     setError(null);
     setStepIndex((i) => Math.min(i + 1, steps.length - 1));
@@ -211,7 +213,9 @@ export function PlanFlow() {
   }, [current.key, next, submit]);
 
   const advanceSoon = useCallback(() => {
-    window.setTimeout(() => next(), 220);
+    // Skip validation — the timeout can run before React applies the selection,
+    // and the choice itself satisfies the step requirement.
+    window.setTimeout(() => next({ skipValidation: true }), 220);
   }, [next]);
 
   return (
