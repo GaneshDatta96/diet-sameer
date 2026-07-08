@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/build.mjs",
+    "build": "opennextjs-cloudflare build && opennextjs-cloudflare populateCache local",
     "build:next": "next build",
     "build:cf": "opennextjs-cloudflare build && opennextjs-cloudflare populateCache local",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",

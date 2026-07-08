@@ -98,17 +98,20 @@ npx wrangler kv namespace create ORDER_STORE
 npm run deploy
 ```
 
-For Git-connected Cloudflare Workers builds, set:
+For Git-connected Cloudflare Workers builds, set **exactly**:
 
-- **Build command:** `npm run build:cf`
-- **Deploy command:** `npx opennextjs-cloudflare deploy`
+| Setting | Command |
+|---------|---------|
+| **Build command** | `npm run build` |
+| **Deploy command** | `npx opennextjs-cloudflare deploy` |
 
-Do **not** use `npx wrangler deploy` alone as the deploy command — use OpenNext's
-deploy so cache population and worker bundling stay in sync.
+`npm run build` runs OpenNext (not plain `next build`). The deploy step must use
+`opennextjs-cloudflare deploy`, not `npx wrangler deploy` alone.
 
-The worker `name` in `wrangler.jsonc` must match your Cloudflare Workers project
-name (this repo uses `diet-sameer`). If they differ, Git deploys to one worker
-while `*.workers.dev` still shows the default **Hello World** starter on another.
+If you still see `> next build` in the logs, Cloudflare is on an old commit or
+the build command was overridden in the dashboard — fix it to `npm run build`.
+
+Clear the **build cache** in Cloudflare settings before redeploying.
 
 `build:cf` runs `populateCache` so pre-rendered pages (`/`, `/plan`, `/confirm`) are
 copied into the static asset bundle. Skipping that step causes **404 on every page**.
