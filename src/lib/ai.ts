@@ -41,9 +41,15 @@ TRAFFIC-LIGHT RULES (do not violate):
 - YELLOW (test carefully, small amounts, only if not in an active flare): ${yellow.join(", ")}.
 - RED (never include): ${red.join(", ")}.
 - Preferred sweeteners if needed: ${PREFERRED_SWEETENERS.join(", ")}.
-- In an active flare: GREEN foods only.
+- In an active flare: GREEN foods only — no fermented vegetable sides during an active flare.
 - Respect the user's diet type, meat frequency, dislikes and dietary restrictions strictly.
 - You are given a DIGEST of the person's form: honor avoidFoods and inferredRestrictions strictly, lean into emphasizeFoods where they fit, and if there are safetyFlags, add a clear, caring note in personalNotes urging them to talk to Sameer and their doctor.
+
+MEAL-PLAN QUALITY RULES (must follow):
+- Variety: meals must look clearly different day to day. Do not repeat the same breakfast/lunch/dinner title across the week unless the pool is tiny.
+- Weight loss: if goal is lose-weight, NEVER include bananas, honey, white rice, or other starch/weight-gain carbs. Anchor on protein, natural fats, and well-cooked vegetables.
+- Vegetarians: include more well-cooked above-ground vegetables (zucchini, green beans, soft spinach, asparagus tips) cooked in butter/ghee. For vegetarian + weight loss, that pattern is the centre of the plate — not fruit or rice.
+- Ferments for everyone (when not in active flare): include small sides of sauerkraut, mild kimchi, or brine cucumber pickles (NOT achar / spicy Indian pickle). Start tiny.
 
 Return ONLY valid JSON matching this TypeScript type (no markdown):
 {
