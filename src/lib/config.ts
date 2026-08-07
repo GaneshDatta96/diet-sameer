@@ -107,10 +107,19 @@ interface SmtpConfig {
 
 function resolveSmtpConfig(): SmtpConfig | null {
   const fromEnv =
-    process.env.GMAIL_FROM ?? process.env.SMTP_FROM ?? "";
+    process.env.SMTP_FROM ?? process.env.GMAIL_FROM ?? "";
+
+  // Prefer generic SMTP_* (Zoho, etc.) over legacy Gmail helpers.
+  const user =
+    process.env.SMTP_USER ?? process.env.GMAIL_USER ?? "";
+  const pass =
+    process.env.SMTP_PASSWORD ??
+    process.env.SMTP_PASS ??
+    process.env.GMAIL_APP_PASSWORD ??
+    "";
 
   const json = process.env.GMAIL_ACCOUNTS_JSON?.trim();
-  if (json) {
+  if ((!user || !pass) && json) {
     try {
       const accounts = JSON.parse(json) as {
         email?: string;
@@ -122,7 +131,7 @@ function resolveSmtpConfig(): SmtpConfig | null {
       if (acc?.email && acc?.password) {
         const port = acc.port ?? 465;
         return {
-          host: acc.smtp ?? "smtp.gmail.com",
+          host: acc.smtp ?? defaultSmtpHost(acc.email),
           port,
           secure: port === 465,
           user: acc.email,
@@ -135,18 +144,12 @@ function resolveSmtpConfig(): SmtpConfig | null {
     }
   }
 
-  const user =
-    process.env.GMAIL_USER ?? process.env.SMTP_USER ?? "";
-  const pass =
-    process.env.GMAIL_APP_PASSWORD ??
-    process.env.SMTP_PASSWORD ??
-    process.env.SMTP_PASS ??
-    "";
   if (!user || !pass) return null;
 
-  const port = Number(process.env.SMTP_PORT ?? (hostIsGmail() ? 465 : 587));
+  const host = process.env.SMTP_HOST ?? defaultSmtpHost(user);
+  const port = Number(process.env.SMTP_PORT ?? 465);
   return {
-    host: process.env.SMTP_HOST ?? "smtp.gmail.com",
+    host,
     port,
     secure: port === 465,
     user,
@@ -155,9 +158,22 @@ function resolveSmtpConfig(): SmtpConfig | null {
   };
 }
 
-function hostIsGmail() {
-  const host = (process.env.SMTP_HOST ?? "smtp.gmail.com").toLowerCase();
-  return host.includes("gmail.com");
+/** Pick a sensible SMTP host from the mailbox address when SMTP_HOST is unset. */
+function defaultSmtpHost(email: string): string {
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  if (domain.includes("gmail.com") || domain.includes("googlemail.com")) {
+    return "smtp.gmail.com";
+  }
+  // Zoho Mail / Zoho Mail on custom domains (e.g. sameerdossani.co)
+  if (
+    domain.includes("zoho") ||
+    domain.endsWith("sameerdossani.co") ||
+    domain.endsWith("sameerdossani.com") ||
+    domain.endsWith("sameerdossani.net")
+  ) {
+    return "smtp.zoho.com";
+  }
+  return "smtp.zoho.com";
 }
 
 export function deliveryWindowHours() {
