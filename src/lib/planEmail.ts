@@ -16,6 +16,13 @@ export function renderPlanEmail(plan: MealPlan, firstName: string): string {
         <div style="font-family:Poppins,Arial,sans-serif;font-weight:700;color:${teal};font-size:16px;border-bottom:2px solid ${green};padding-bottom:6px;">${escape(
           day.label
         )}</div>
+        ${
+          day.why
+            ? `<div style="font-size:12px;color:${muted};font-style:italic;margin-top:4px;">${escape(
+                day.why
+              )}</div>`
+            : ""
+        }
       </td></tr>
       ${day.meals
         .map(
@@ -77,6 +84,21 @@ export function renderPlanEmail(plan: MealPlan, firstName: string): string {
             ${list("🟢 Your green foundation", plan.greenFoundation, green)}
             ${list("🟡 Test carefully", plan.testCarefully, "#c88a12")}
             ${list("🔴 Skip for now", plan.skipForNow, "#c0492f")}
+            ${
+              plan.shoppingList?.length
+                ? list("🛒 Shopping list", plan.shoppingList, teal)
+                : ""
+            }
+            ${
+              plan.prepTips?.length
+                ? list("⏱️ Prep tips", plan.prepTips, teal)
+                : ""
+            }
+            ${
+              plan.swaps?.length
+                ? list("🔄 Easy swaps", plan.swaps, teal)
+                : ""
+            }
           </table>
         </td></tr>
 

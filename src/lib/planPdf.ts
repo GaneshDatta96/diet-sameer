@@ -58,6 +58,14 @@ export async function writePlanPdf(
       .lineWidth(1)
       .stroke();
     doc.moveDown(0.35);
+    if (day.why) {
+      doc
+        .fillColor(muted)
+        .fontSize(9)
+        .font("Helvetica-Oblique")
+        .text(day.why, { width: 500 });
+      doc.moveDown(0.25);
+    }
 
     for (const meal of day.meals) {
       doc
@@ -97,6 +105,31 @@ export async function writePlanPdf(
     doc.fillColor(ink).fontSize(9).font("Helvetica").text(`• ${g}`, { width: 500 });
   }
   doc.moveDown(0.5);
+
+  if (plan.shoppingList?.length) {
+    doc.fillColor(teal).fontSize(12).font("Helvetica-Bold").text("Shopping list");
+    doc.moveDown(0.2);
+    for (const g of plan.shoppingList) {
+      doc.fillColor(ink).fontSize(9).font("Helvetica").text(`• ${g}`, { width: 500 });
+    }
+    doc.moveDown(0.5);
+  }
+  if (plan.prepTips?.length) {
+    doc.fillColor(teal).fontSize(12).font("Helvetica-Bold").text("Prep tips");
+    doc.moveDown(0.2);
+    for (const g of plan.prepTips) {
+      doc.fillColor(ink).fontSize(9).font("Helvetica").text(`• ${g}`, { width: 500 });
+    }
+    doc.moveDown(0.5);
+  }
+  if (plan.swaps?.length) {
+    doc.fillColor(teal).fontSize(12).font("Helvetica-Bold").text("Easy swaps");
+    doc.moveDown(0.2);
+    for (const g of plan.swaps) {
+      doc.fillColor(ink).fontSize(9).font("Helvetica").text(`• ${g}`, { width: 500 });
+    }
+    doc.moveDown(0.5);
+  }
 
   doc.fillColor(teal).fontSize(12).font("Helvetica-Bold").text("Personal notes");
   doc.moveDown(0.2);

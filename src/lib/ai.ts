@@ -49,17 +49,23 @@ MEAL-PLAN QUALITY RULES (must follow):
 - Variety: meals must look clearly different day to day. Do not repeat the same breakfast/lunch/dinner title across the week unless the pool is tiny.
 - Weight loss: if goal is lose-weight, NEVER include bananas, honey, white rice, or other starch/weight-gain carbs. Anchor on protein, natural fats, and well-cooked vegetables.
 - Vegetarians: include more well-cooked above-ground vegetables (zucchini, green beans, soft spinach, asparagus tips) cooked in butter/ghee. For vegetarian + weight loss, that pattern is the centre of the plate — not fruit or rice.
-- Ferments for everyone (when not in active flare): include small sides of sauerkraut, mild kimchi, or brine cucumber pickles (NOT achar / spicy Indian pickle). Start tiny.
+- Ferments for everyone (when not in active flare): include small sides of sauerkraut, mild kimchi, or brine cucumber pickles (NOT achar / spicy Indian pickle). Start tiny; dose up across the week. Skip kimchi if nightshade-free.
+- If safetyFlags mention bleeding, prednisone/steroids, biologics, or recent surgery: keep the week mostly GREEN (no yellow ferments).
+- Each day must include a short "why" explaining the day's focus.
+- Also return shoppingList (deduped ingredients), prepTips (batch-cook shortcuts), and swaps (easy substitutions).
 
 Return ONLY valid JSON matching this TypeScript type (no markdown):
 {
   "headline": string,
   "intro": string,
-  "days": { "day": number, "label": string, "meals": { "slot": "Breakfast"|"Lunch"|"Dinner"|"Snack", "title": string, "items": string[], "note"?: string }[] }[],
+  "days": { "day": number, "label": string, "why"?: string, "meals": { "slot": "Breakfast"|"Lunch"|"Dinner"|"Snack", "title": string, "items": string[], "note"?: string }[] }[],
   "greenFoundation": string[],
   "testCarefully": string[],
   "skipForNow": string[],
   "hydrationAndSalt": string,
+  "shoppingList": string[],
+  "prepTips": string[],
+  "swaps": string[],
   "personalNotes": string[],
   "disclaimer": string
 }
@@ -117,6 +123,9 @@ async function generateWithOpenAI(
     testCarefully: parsed.testCarefully ?? fallback.testCarefully,
     skipForNow: parsed.skipForNow ?? fallback.skipForNow,
     hydrationAndSalt: parsed.hydrationAndSalt ?? fallback.hydrationAndSalt,
+    shoppingList: parsed.shoppingList ?? fallback.shoppingList,
+    prepTips: parsed.prepTips ?? fallback.prepTips,
+    swaps: parsed.swaps ?? fallback.swaps,
     personalNotes: parsed.personalNotes ?? fallback.personalNotes,
     disclaimer: fallback.disclaimer,
     generatedBy: "ai",

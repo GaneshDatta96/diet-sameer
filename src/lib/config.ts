@@ -106,17 +106,25 @@ interface SmtpConfig {
 }
 
 function resolveSmtpConfig(): SmtpConfig | null {
-  const fromEnv =
-    process.env.SMTP_FROM ?? process.env.GMAIL_FROM ?? "";
+  const fromEnv = (
+    process.env.SMTP_FROM ??
+    process.env.GMAIL_FROM ??
+    ""
+  ).trim();
 
-  // Prefer generic SMTP_* (Zoho, etc.) over legacy Gmail helpers.
-  const user =
-    process.env.SMTP_USER ?? process.env.GMAIL_USER ?? "";
-  const pass =
+  let user = (
+    process.env.SMTP_USER ??
+    process.env.GMAIL_USER ??
+    ""
+  ).trim();
+  let pass = (
     process.env.SMTP_PASSWORD ??
     process.env.SMTP_PASS ??
     process.env.GMAIL_APP_PASSWORD ??
-    "";
+    ""
+  ).trim();
+  let host = (process.env.SMTP_HOST ?? "").trim();
+  let port = Number(process.env.SMTP_PORT ?? 465);
 
   const json = process.env.GMAIL_ACCOUNTS_JSON?.trim();
   if ((!user || !pass) && json) {
@@ -129,15 +137,10 @@ function resolveSmtpConfig(): SmtpConfig | null {
       }[];
       const acc = accounts[0];
       if (acc?.email && acc?.password) {
-        const port = acc.port ?? 465;
-        return {
-          host: acc.smtp ?? defaultSmtpHost(acc.email),
-          port,
-          secure: port === 465,
-          user: acc.email,
-          pass: acc.password,
-          from: fromEnv || `Gut Freedom <${acc.email}>`,
-        };
+        user = acc.email.trim();
+        pass = acc.password.trim();
+        host = (acc.smtp ?? defaultSmtpHost(user)).trim();
+        port = acc.port ?? 465;
       }
     } catch {
       console.error("[config] GMAIL_ACCOUNTS_JSON is not valid JSON");
@@ -145,9 +148,8 @@ function resolveSmtpConfig(): SmtpConfig | null {
   }
 
   if (!user || !pass) return null;
+  if (!host) host = defaultSmtpHost(user);
 
-  const host = process.env.SMTP_HOST ?? defaultSmtpHost(user);
-  const port = Number(process.env.SMTP_PORT ?? 465);
   return {
     host,
     port,

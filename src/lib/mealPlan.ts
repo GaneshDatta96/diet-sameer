@@ -880,6 +880,16 @@ export function generateMealPlan(
   }
 
   const activeFlare = intake.flareState === "active-flare";
+  const safetyText = (brief?.safetyFlags ?? []).join(" ").toLowerCase();
+  const cautionFromSafety =
+    /(bleeding|prednisone|steroid|humira|biologic|surgery|resection)/.test(
+      safetyText
+    );
+  /** Treat medicated / bleeding weeks like a green-only flare for meal picking. */
+  const greenOnlyWeek = activeFlare || cautionFromSafety;
+  const nightshadeFree =
+    intake.restrictions.includes("nightshade-free") ||
+    blockedReqs.has("nightshade");
   const wantsGain = intake.goal === "gain-weight";
   const wantsLose = intake.goal === "lose-weight";
 
@@ -888,18 +898,32 @@ export function generateMealPlan(
     ...filterFoodList(brief?.avoidFoods ?? []),
   ];
 
+  const fermentLadder = nightshadeFree
+    ? [
+        "½ teaspoon sauerkraut on the side (tiny start)",
+        "1 small spoon of sauerkraut",
+        "A few brine cucumber pickles (not achar)",
+        "Brine cucumber pickles on the side",
+      ]
+    : [
+        "½ teaspoon sauerkraut on the side (tiny start)",
+        "1 small spoon of sauerkraut",
+        "A few brine cucumber pickles (not achar)",
+        "Small serving of mild kimchi (go easy if spicy)",
+      ];
+
   function allowed(t: Template): boolean {
     if (!t.diet.includes(intake.dietType)) return false;
     if (t.requires.some((req) => blockedReqs.has(req))) return false;
-    if (activeFlare && t.tier !== "green") return false;
+    if (greenOnlyWeek && t.tier !== "green") return false;
     if (t.goalOnly === "gain-weight" && !wantsGain) return false;
     if (t.goalOnly === "lose-weight" && !wantsLose) return false;
-    // Weight loss: no starches / bananas / honey-style carbs
     if (wantsLose && (t.requires.includes("starch") || t.requires.includes("carb"))) {
       return false;
     }
-    const hay = (t.title + " " + t.items.join(" ")).toLowerCase();
-    if (dislikeWords.some((w) => w.length > 2 && hay.includes(w))) return false;
+    const text = (t.title + " " + t.items.join(" ")).toLowerCase();
+    if (nightshadeFree && /kimchi/.test(text)) return false;
+    if (dislikeWords.some((w) => w.length > 2 && text.includes(w))) return false;
     return true;
   }
 
@@ -946,7 +970,6 @@ export function generateMealPlan(
     Snack: new Set(),
   };
   const usedTitles = new Set<string>();
-  let fermentSideIdx = 0;
   let carbMealsPlaced = 0;
   const carbTarget = wantsGain ? 5 : 0; // ~5 carb-forward meals across the week when gaining
   const emphasize = [
@@ -1022,7 +1045,7 @@ export function generateMealPlan(
       score += 6;
     }
     if (intake.goal === "calm-symptoms" && t.tier === "green") score += 10;
-    if (activeFlare && t.tier === "green") score += 15;
+    if (greenOnlyWeek && t.tier === "green") score += 15;
 
     const fam = proteinFamily(t);
     if (lastFamily && fam === lastFamily) score -= 20;
@@ -1076,18 +1099,20 @@ export function generateMealPlan(
   }
 
   function toMeal(t: Template, day: number): Meal {
-    const items = [...t.items];
+    let items = [...t.items];
+    if (nightshadeFree) {
+      items = items.filter((i) => !/kimchi/i.test(i));
+    }
     const alreadyFermented = items.some((i) =>
       /sauerkraut|kimchi|pickle/i.test(i)
     );
     if (
-      !activeFlare &&
+      !greenOnlyWeek &&
       t.slot === "Dinner" &&
       !alreadyFermented &&
-      day % 3 === 0
+      day % 2 === 0
     ) {
-      items.push(FERMENTED_SIDES[fermentSideIdx % FERMENTED_SIDES.length]);
-      fermentSideIdx++;
+      items.push(fermentLadder[Math.min(day, fermentLadder.length - 1)]);
     }
     return {
       slot: t.slot,
@@ -1097,6 +1122,35 @@ export function generateMealPlan(
     };
   }
 
+  function dayWhy(dayIndex: number, meals: Meal[]): string {
+    const blob = meals
+      .map((m) => `${m.title} ${m.items.join(" ")}`)
+      .join(" ")
+      .toLowerCase();
+    const parts: string[] = [];
+    if (greenOnlyWeek) {
+      parts.push(
+        activeFlare
+          ? "green-only while you're in a flare"
+          : "kept greener because of meds / safety signals you mentioned"
+      );
+    } else if (/(sauerkraut|kimchi|pickle)/.test(blob)) {
+      parts.push("includes a small fermented side to test");
+    }
+    if (wantsLose) parts.push("protein + fat heavy, no weight-gain carbs");
+    if (wantsGain && /\brice\b|banana|honey/.test(blob)) {
+      parts.push("soft carbs for weight gain");
+    }
+    if (/(zucchini|green beans|spinach|asparagus|squash|courgette)/.test(blob)) {
+      parts.push("well-cooked above-ground veg");
+    }
+    if (emphasize.some((w) => w.length > 2 && blob.includes(w))) {
+      parts.push("leans into foods you said you enjoy");
+    }
+    if (!parts.length) parts.push("simple green-foundation plate");
+    return `Day ${dayIndex + 1} focus: ${parts.join(" · ")}.`;
+  }
+
   const days: DayPlan[] = [];
   for (let d = 0; d < 7; d++) {
     const meals: Meal[] = [];
@@ -1104,7 +1158,6 @@ export function generateMealPlan(
     for (const slot of ["Breakfast", "Lunch", "Dinner"] as const) {
       const chosen = choose(pool[slot], d, slot);
       if (!chosen) {
-        // Prefer any remaining unused option from other tiers before generic fallback
         const any = pool[slot][0];
         meals.push(any ? toMeal(any, d) : safeFallback[slot]);
         continue;
@@ -1112,13 +1165,13 @@ export function generateMealPlan(
       meals.push(toMeal(chosen, d));
     }
     if (d % 2 === 0 && pool.Snack.length) {
-      // Weight loss: skip banana/honey snacks (already filtered). Prefer ferment or broth.
       const s = choose(pool.Snack, d, "Snack");
       if (s) meals.push(toMeal(s, d));
     }
     days.push({
       day: d + 1,
       label: `Day ${d + 1} · ${DAY_NAMES[d]}`,
+      why: dayWhy(d, meals),
       meals,
     });
   }
@@ -1138,7 +1191,9 @@ export function generateMealPlan(
     greenFoundation: greenFoundationFor(intake),
     testCarefully: [
       "Aged / fermented dairy",
-      "Small amounts of fermented vegetables — sauerkraut, mild kimchi, brine cucumber pickles (not achar)",
+      nightshadeFree
+        ? "Small amounts of fermented vegetables — sauerkraut and brine cucumber pickles (not achar); skip kimchi while nightshades are out"
+        : "Small amounts of fermented vegetables — sauerkraut, mild kimchi, brine cucumber pickles (not achar)",
       "Cooked, peeled, low-fiber plants (squash, well-cooked zucchini / green beans; ripe banana only if weight gain is a goal)",
       "Coffee, small amounts of nuts, nightshades, occasional fruit & honey",
     ],
@@ -1153,6 +1208,9 @@ export function generateMealPlan(
     ],
     hydrationAndSalt:
       "Salt more than you think, especially if things are moving fast, and keep water steady through the day. Warm bone broth counts.",
+    shoppingList: buildShoppingList(days),
+    prepTips: buildPrepTips(intake, days),
+    swaps: buildSwaps(intake),
     personalNotes: notes,
     disclaimer:
       "This plan is educational, not medical advice. It's built on population-level patterns from Sameer's traffic-light approach — not on your labs, history or how your body is responding this week. It is not a substitute for care from your doctor, especially during an active flare. Two people with the same diagnosis can have completely different triggers, which is exactly why a plan built around you works better than a generic one.",
@@ -1312,8 +1370,11 @@ function buildPersonalNotes(
     );
   }
   if (!activeFlareNote(intake)) {
+    const nightshade = intake.restrictions.includes("nightshade-free");
     notes.push(
-      "We've woven in small fermented sides — sauerkraut, mild kimchi, or brine cucumber pickles (not achar). Start tiny and only keep what your gut tolerates."
+      nightshade
+        ? "We've woven in a gentle fermented ladder — tiny sauerkraut first, then brine pickles (not achar). Kimchi stays out while nightshades are off the table."
+        : "We've woven in a gentle fermented ladder — tiny sauerkraut early in the week, then pickles or mild kimchi. Start small and only keep what your gut tolerates."
     );
   }
   if (dairyFree) {
@@ -1361,4 +1422,114 @@ function labelFrequency(f: Intake["meatFrequency"]): string {
     default:
       return "sometimes";
   }
+}
+
+function buildShoppingList(days: DayPlan[]): string[] {
+  const map = new Map<string, number>();
+  const normalize = (raw: string) => {
+    let s = raw.toLowerCase().replace(/\s+/g, " ").trim();
+    s = s.replace(/^(a |an |the |small |large |few |optional:?\s*)+/i, "");
+    s = s.replace(/\([^)]*\)/g, "").trim();
+    // Collapse quantities like "3 eggs..." → eggs
+    if (/\beggs?\b/.test(s)) return "Eggs";
+    if (/butter|ghee/.test(s)) return "Butter / ghee";
+    if (/tallow/.test(s)) return "Beef tallow";
+    if (/sea salt|pinch of salt|salt/.test(s)) return "Sea salt";
+    if (/bone broth|broth/.test(s)) return "Bone broth";
+    if (/ribeye|steak/.test(s)) return "Ribeye / steak";
+    if (/ground beef|beef patt/.test(s)) return "Ground beef";
+    if (/\blamb\b/.test(s)) return "Lamb";
+    if (/chicken/.test(s)) return "Chicken thighs";
+    if (/salmon/.test(s)) return "Salmon";
+    if (/sardine/.test(s)) return "Sardines (tinned in olive oil)";
+    if (/mackerel/.test(s)) return "Mackerel";
+    if (/zucchini|courgette/.test(s)) return "Zucchini / courgette";
+    if (/green beans/.test(s)) return "Green beans";
+    if (/spinach/.test(s)) return "Spinach";
+    if (/asparagus/.test(s)) return "Asparagus tips";
+    if (/squash/.test(s)) return "Squash (peeled)";
+    if (/carrot/.test(s)) return "Carrots (to peel & cook)";
+    if (/sauerkraut/.test(s)) return "Sauerkraut";
+    if (/kimchi/.test(s)) return "Mild kimchi";
+    if (/pickle/.test(s)) return "Brine cucumber pickles (not achar)";
+    if (/cheese/.test(s)) return "Aged hard cheese";
+    if (/yoghurt|yogurt/.test(s)) return "Full-fat plain yoghurt";
+    if (/\brice\b/.test(s)) return "White rice";
+    if (/banana/.test(s)) return "Ripe bananas";
+    if (/honey/.test(s)) return "Raw honey";
+    if (/olive oil/.test(s)) return "Olive oil";
+    if (/macadamia|almond|nuts/.test(s)) return "Macadamias or almonds (small pack)";
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+
+  for (const day of days) {
+    for (const meal of day.meals) {
+      for (const item of meal.items) {
+        const key = normalize(item);
+        if (!key || key.length < 3) continue;
+        if (/your tolerated|green-tier protein|natural fat|optional/i.test(key))
+          continue;
+        map.set(key, (map.get(key) ?? 0) + 1);
+      }
+    }
+  }
+
+  return Array.from(map.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name]) => name)
+    .slice(0, 28);
+}
+
+function buildPrepTips(intake: Intake, days: DayPlan[]): string[] {
+  const blob = days
+    .flatMap((d) => d.meals.flatMap((m) => [m.title, ...m.items]))
+    .join(" ")
+    .toLowerCase();
+  const tips: string[] = [];
+  if (/ground beef|beef patt/.test(blob)) {
+    tips.push("Batch-cook 1–1.5 kg ground beef in tallow mid-week — reheats cleanly for lunches.");
+  }
+  if (/bone broth|broth/.test(blob)) {
+    tips.push("Simmer a pot of bone broth once and freeze mug-sized portions for snacks.");
+  }
+  if (/chicken/.test(blob)) {
+    tips.push("Roast a tray of chicken thighs with skin on — eat hot night one, cold or rewarmed later.");
+  }
+  if (/zucchini|green beans|spinach|courgette/.test(blob)) {
+    tips.push("Prep veg the day you buy it: wash, then cook soft in butter/ghee (or olive oil if dairy-free) until melting — no crunchy leftovers.");
+  }
+  if (/sauerkraut|kimchi|pickle/.test(blob)) {
+    tips.push("Keep ferments fridge-cold and serve teaspoons only at first — dose up only if symptoms stay calm.");
+  }
+  if (intake.goal === "gain-weight" && /\brice\b/.test(blob)) {
+    tips.push("Cook a pot of soft white rice every 2–3 days; reheat with extra ghee or broth.");
+  }
+  if (!tips.length) {
+    tips.push("Cook once, eat twice: double dinner protein and use leftovers for the next lunch.");
+  }
+  return tips.slice(0, 5);
+}
+
+function buildSwaps(intake: Intake): string[] {
+  const swaps: string[] = [];
+  if (intake.dietType !== "vegetarian") {
+    swaps.push("No lamb → fatty ground beef or ribeye.");
+    swaps.push("No salmon → sardines or mackerel.");
+  }
+  if (!intake.restrictions.includes("egg-free")) {
+    swaps.push("No ribeye / chicken tonight → eggs + aged cheese (if dairy is ok).");
+  }
+  if (!intake.restrictions.includes("dairy-free")) {
+    swaps.push("No butter → ghee; no yoghurt → aged hard cheese.");
+  } else {
+    swaps.push("No butter/ghee → cook in tallow or olive oil.");
+  }
+  if (intake.dietType === "vegetarian") {
+    swaps.push("No zucchini → soft green beans or wilted spinach (well-cooked).");
+  }
+  swaps.push("Any ferment flares you → drop it immediately and note it for your call.");
+  if (intake.goal === "gain-weight") {
+    swaps.push("No rice → soft cooked squash with lots of fat (still gentler than fruit juice).");
+  }
+  return swaps.slice(0, 6);
 }

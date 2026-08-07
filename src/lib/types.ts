@@ -88,6 +88,8 @@ export interface Meal {
 export interface DayPlan {
   day: number;
   label: string; // e.g. "Day 1 · Monday"
+  /** One-line reason this day is shaped the way it is. */
+  why?: string;
   meals: Meal[];
 }
 
@@ -99,6 +101,12 @@ export interface MealPlan {
   testCarefully: string[];
   skipForNow: string[];
   hydrationAndSalt: string;
+  /** Deduped shopping list for the week. */
+  shoppingList?: string[];
+  /** Batch-cook / prep shortcuts. */
+  prepTips?: string[];
+  /** Easy swaps if something isn't available / tolerated. */
+  swaps?: string[];
   personalNotes: string[];
   disclaimer: string;
   generatedBy: "ai" | "rules";
