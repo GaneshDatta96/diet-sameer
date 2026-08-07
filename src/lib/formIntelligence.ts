@@ -185,7 +185,6 @@ const INTOLERANCE_CUES = [
   "cant eat",
   "avoid",
   "no ",
-  "without",
   "bloat",
   "upsets",
   "reacts",
@@ -193,6 +192,7 @@ const INTOLERANCE_CUES = [
   "sensitive",
   "triggers",
 ];
+// Note: bare "without" was removed — phrases like "without flare" falsely inferred food restrictions.
 
 const SAFETY_CUES: { match: string[]; flag: string }[] = [
   { match: ["pregnan"], flag: "Pregnancy mentioned — this tool can't replace individualized guidance." },

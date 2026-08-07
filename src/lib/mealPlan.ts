@@ -182,10 +182,73 @@ const TEMPLATES: Template[] = [
     diet: ALL,
   },
 
-  // ---------------- Lunch ----------------
+  // ---------------- Lunch (green foundation — no ferments; use in flares too) ----------------
   {
     slot: "Lunch",
     title: "Roast chicken & broth",
+    items: ["Roast chicken thighs (skin on)", "Warm bone broth", "Sea salt"],
+    requires: ["poultry"],
+    tier: "green",
+    diet: OMNI,
+    flesh: true,
+  },
+  {
+    slot: "Lunch",
+    title: "Beef patty plate",
+    items: ["Fatty ground beef cooked in tallow", "Sea salt"],
+    requires: ["ruminant"],
+    tier: "green",
+    diet: ["meat-eater"],
+    flesh: true,
+  },
+  {
+    slot: "Lunch",
+    title: "Lamb & salt",
+    items: ["Slow-cooked lamb", "Sea salt"],
+    requires: ["ruminant"],
+    tier: "green",
+    diet: ["meat-eater"],
+    flesh: true,
+  },
+  {
+    slot: "Lunch",
+    title: "Sardines plain",
+    items: ["Tinned sardines in olive oil", "Sea salt"],
+    requires: ["fish"],
+    tier: "green",
+    diet: OMNI,
+    flesh: true,
+  },
+  {
+    slot: "Lunch",
+    title: "Salmon lunch",
+    items: ["Pan-seared salmon in butter", "Sea salt"],
+    requires: ["fish", "dairy"],
+    tier: "green",
+    diet: OMNI,
+    flesh: true,
+  },
+  {
+    slot: "Lunch",
+    title: "Three-egg scramble in ghee",
+    items: ["3 eggs soft-scrambled in ghee", "Sea salt"],
+    requires: ["eggs", "dairy"],
+    tier: "green",
+    diet: ALL,
+  },
+  {
+    slot: "Lunch",
+    title: "Boiled eggs & butter",
+    items: ["3 soft-boiled eggs", "Butter", "Sea salt"],
+    requires: ["eggs", "dairy"],
+    tier: "green",
+    diet: ALL,
+  },
+
+  // ---------------- Lunch (yellow — ferments / cooked veg to test when calm) ----------------
+  {
+    slot: "Lunch",
+    title: "Roast chicken with sauerkraut",
     items: [
       "Roast chicken thighs (skin on)",
       "Warm bone broth",
@@ -275,7 +338,7 @@ const TEMPLATES: Template[] = [
   },
   {
     slot: "Lunch",
-    title: "Three-egg scramble in ghee",
+    title: "Eggs with sauerkraut",
     items: [
       "3 eggs soft-scrambled in ghee",
       "Small spoon of sauerkraut",
@@ -362,11 +425,82 @@ const TEMPLATES: Template[] = [
     diet: VEG,
     note: "Yellow: tender asparagus tips only — stop if fibrous ends bother you.",
   },
+  {
+    slot: "Lunch",
+    title: "Vegetarian egg plate",
+    items: ["3 fried eggs in ghee", "Sea salt"],
+    requires: ["eggs", "dairy"],
+    tier: "green",
+    diet: VEG,
+  },
 
-  // ---------------- Dinner ----------------
+  // ---------------- Dinner (green foundation) ----------------
   {
     slot: "Dinner",
     title: "Ribeye & butter",
+    items: ["Fatty ribeye steak", "Butter", "Sea salt"],
+    requires: ["ruminant", "dairy"],
+    tier: "green",
+    diet: ["meat-eater"],
+    flesh: true,
+  },
+  {
+    slot: "Dinner",
+    title: "Beef patties in tallow",
+    items: ["Fatty ground beef patties", "Cooked in tallow", "Sea salt"],
+    requires: ["ruminant"],
+    tier: "green",
+    diet: ["meat-eater"],
+    flesh: true,
+  },
+  {
+    slot: "Dinner",
+    title: "Lamb chops",
+    items: ["Lamb chops cooked in ghee", "Sea salt"],
+    requires: ["ruminant", "dairy"],
+    tier: "green",
+    diet: ["meat-eater"],
+    flesh: true,
+  },
+  {
+    slot: "Dinner",
+    title: "Baked salmon",
+    items: ["Baked salmon with butter", "Warm bone broth on the side"],
+    requires: ["fish", "dairy"],
+    tier: "green",
+    diet: OMNI,
+    flesh: true,
+  },
+  {
+    slot: "Dinner",
+    title: "Chicken thighs plain",
+    items: ["Roasted chicken thighs with skin", "Sea salt"],
+    requires: ["poultry"],
+    tier: "green",
+    diet: OMNI,
+    flesh: true,
+  },
+  {
+    slot: "Dinner",
+    title: "Omelette supper",
+    items: ["Large 3-egg omelette in butter", "Sea salt"],
+    requires: ["eggs", "dairy"],
+    tier: "green",
+    diet: ALL,
+  },
+  {
+    slot: "Dinner",
+    title: "Soft eggs & cheese",
+    items: ["Soft-scrambled eggs in ghee", "Aged cheese", "Sea salt"],
+    requires: ["eggs", "dairy"],
+    tier: "green",
+    diet: ALL,
+  },
+
+  // ---------------- Dinner (yellow — veg / ferments when calm) ----------------
+  {
+    slot: "Dinner",
+    title: "Ribeye with sauerkraut",
     items: [
       "Fatty ribeye steak",
       "Butter",
@@ -380,7 +514,7 @@ const TEMPLATES: Template[] = [
   },
   {
     slot: "Dinner",
-    title: "Beef patties in tallow",
+    title: "Beef patties with kimchi",
     items: [
       "Fatty ground beef patties",
       "Cooked in tallow",
@@ -407,7 +541,7 @@ const TEMPLATES: Template[] = [
   },
   {
     slot: "Dinner",
-    title: "Baked salmon",
+    title: "Salmon with sauerkraut",
     items: [
       "Baked salmon with butter",
       "Warm bone broth on the side",
@@ -469,7 +603,7 @@ const TEMPLATES: Template[] = [
   },
   {
     slot: "Dinner",
-    title: "Omelette & cheese",
+    title: "Omelette & cheese with kimchi",
     items: [
       "Large 3-egg omelette in butter",
       "Melted aged cheese",
@@ -541,6 +675,56 @@ const TEMPLATES: Template[] = [
     tier: "yellow",
     diet: OMNI,
     flesh: true,
+  },
+  {
+    slot: "Lunch",
+    title: "Olive-oil zucchini eggs",
+    items: [
+      "Zucchini cooked soft in olive oil",
+      "2 fried eggs",
+      "Sea salt",
+    ],
+    requires: ["eggs"],
+    tier: "yellow",
+    diet: VEG,
+    note: "Dairy-free vegetarian: above-ground veg cooked soft in olive oil.",
+  },
+  {
+    slot: "Dinner",
+    title: "Green beans & eggs (no dairy)",
+    items: [
+      "Green beans cooked soft in olive oil",
+      "Soft-boiled eggs",
+      "Sea salt",
+    ],
+    requires: ["eggs"],
+    tier: "yellow",
+    diet: VEG,
+  },
+  {
+    slot: "Lunch",
+    title: "Aged cheese & zucchini",
+    items: [
+      "Zucchini roasted soft in ghee",
+      "Aged hard cheese",
+      "Sea salt",
+    ],
+    requires: ["dairy"],
+    tier: "yellow",
+    diet: VEG,
+    note: "Egg-free vegetarian plate with well-cooked above-ground veg.",
+  },
+  {
+    slot: "Dinner",
+    title: "Cheese spinach ghee",
+    items: [
+      "Spinach wilted soft in ghee",
+      "Aged cheese",
+      "Sea salt",
+    ],
+    requires: ["dairy"],
+    tier: "yellow",
+    diet: VEG,
   },
 
   // ---------------- Snacks ----------------
@@ -701,7 +885,7 @@ export function generateMealPlan(
       items: [
         "Your tolerated green-tier protein",
         "Cooked in a natural animal fat",
-        "Optional: a few brine pickles",
+        "Sea salt",
       ],
     },
     Dinner: {
@@ -835,6 +1019,7 @@ function buildIntro(intake: Intake): string {
 }
 
 function greenFoundationFor(intake: Intake): string[] {
+  const flare = intake.flareState === "active-flare";
   if (intake.dietType === "vegetarian") {
     const veg = [
       "Eggs and egg yolks",
@@ -852,8 +1037,12 @@ function greenFoundationFor(intake: Intake): string[] {
     "Fatty fish — salmon, sardines, mackerel",
     "Eggs, poultry, and animal fats (tallow, ghee, butter)",
     "Bone broth, sea salt and water",
-    "Small fermented sides when calm — sauerkraut, mild kimchi, brine pickles (not achar)",
   ];
+  if (!flare) {
+    base.push(
+      "Small fermented sides when calm — sauerkraut, mild kimchi, brine pickles (not achar)"
+    );
+  }
   if (intake.goal === "gain-weight") {
     base.push("White rice — a gentle source of energy while you build weight");
   }

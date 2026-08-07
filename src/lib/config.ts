@@ -120,7 +120,7 @@ function resolveSmtpConfig(): SmtpConfig | null {
       }[];
       const acc = accounts[0];
       if (acc?.email && acc?.password) {
-        const port = acc.port ?? 587;
+        const port = acc.port ?? 465;
         return {
           host: acc.smtp ?? "smtp.gmail.com",
           port,
@@ -144,7 +144,7 @@ function resolveSmtpConfig(): SmtpConfig | null {
     "";
   if (!user || !pass) return null;
 
-  const port = Number(process.env.SMTP_PORT ?? 587);
+  const port = Number(process.env.SMTP_PORT ?? (hostIsGmail() ? 465 : 587));
   return {
     host: process.env.SMTP_HOST ?? "smtp.gmail.com",
     port,
@@ -153,6 +153,11 @@ function resolveSmtpConfig(): SmtpConfig | null {
     pass,
     from: fromEnv || `Gut Freedom <${user}>`,
   };
+}
+
+function hostIsGmail() {
+  const host = (process.env.SMTP_HOST ?? "smtp.gmail.com").toLowerCase();
+  return host.includes("gmail.com");
 }
 
 export function deliveryWindowHours() {
