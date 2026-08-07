@@ -45,7 +45,7 @@ export default function Home() {
               href="/plan"
               className="rounded-full bg-teal-deep px-8 py-4 font-display text-lg font-bold text-white shadow-sm transition hover:brightness-110"
             >
-              Build my 7-day plan · {config.price.label}
+              Build my 7-day plan
             </Link>
             <a
               href={config.brand.bookCallUrl}
@@ -157,7 +157,7 @@ export default function Home() {
               href="/plan"
               className="rounded-full bg-amber px-8 py-4 font-display text-lg font-bold text-teal-deep shadow-sm transition hover:brightness-105"
             >
-              Build my 7-day plan · {config.price.label}
+              Build my 7-day plan
             </Link>
           </div>
           <BookCallCard />
