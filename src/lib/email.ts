@@ -24,7 +24,6 @@ async function sendViaSmtp(
       host: smtp.host,
       port: smtp.port,
       secure: smtp.secure,
-      // Prefer IPv4 — some networks fail on Gmail's IPv6 routes.
       family: 4,
       auth: {
         user: smtp.user,
@@ -33,7 +32,8 @@ async function sendViaSmtp(
       connectionTimeout: 20000,
       greetingTimeout: 20000,
       socketTimeout: 30000,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     const info = await transport.sendMail({
       from: smtp.from,

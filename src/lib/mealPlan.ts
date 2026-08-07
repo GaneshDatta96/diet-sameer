@@ -729,6 +729,44 @@ const TEMPLATES: Template[] = [
 
   // ---------------- Snacks ----------------
   {
+    slot: "Breakfast",
+    title: "Courgette scramble bowl",
+    items: [
+      "2 eggs scrambled in olive oil",
+      "Courgette cooked soft until melting",
+      "Sea salt",
+    ],
+    requires: ["eggs"],
+    tier: "yellow",
+    diet: VEG,
+    note: "Dairy-free vegetarian breakfast with above-ground veg.",
+  },
+  {
+    slot: "Lunch",
+    title: "Spinach egg olive-oil plate",
+    items: [
+      "Spinach wilted soft in olive oil",
+      "2 soft-boiled eggs",
+      "Sea salt",
+    ],
+    requires: ["eggs"],
+    tier: "yellow",
+    diet: VEG,
+  },
+  {
+    slot: "Dinner",
+    title: "Green beans cheese plate",
+    items: [
+      "Green beans cooked soft in ghee",
+      "Aged hard cheese",
+      "Sea salt",
+    ],
+    requires: ["dairy"],
+    tier: "yellow",
+    diet: VEG,
+    note: "Egg-free vegetarian dinner — veg is the centre of the plate.",
+  },
+  {
     slot: "Snack",
     title: "Warm bone broth",
     items: ["A mug of salted bone broth"],
@@ -901,8 +939,103 @@ export function generateMealPlan(
   };
 
   let fleshLeft = meatBudget(intake);
+  const usedBySlot: Record<Meal["slot"], Set<string>> = {
+    Breakfast: new Set(),
+    Lunch: new Set(),
+    Dinner: new Set(),
+    Snack: new Set(),
+  };
   const usedTitles = new Set<string>();
   let fermentSideIdx = 0;
+  let carbMealsPlaced = 0;
+  const carbTarget = wantsGain ? 5 : 0; // ~5 carb-forward meals across the week when gaining
+  const emphasize = [
+    ...parseFoodList(intake.loves || ""),
+    ...filterFoodList(brief?.emphasizeFoods ?? []),
+  ];
+  const needsCookedVegFocus =
+    intake.dietType === "vegetarian" ||
+    (wantsLose && intake.dietType === "semi-vegetarian");
+  let cookedVegPlaced = 0;
+  const cookedVegTarget = needsCookedVegFocus
+    ? wantsLose
+      ? 6
+      : 4
+    : wantsLose
+      ? 2
+      : 0;
+
+  function hay(t: Template) {
+    return (t.title + " " + t.items.join(" ")).toLowerCase();
+  }
+  function isCookedVeg(t: Template) {
+    return /(zucchini|green beans|spinach|asparagus|squash|courgette)/.test(hay(t));
+  }
+  function isCarbMeal(t: Template) {
+    return t.requires.includes("starch") || t.requires.includes("carb");
+  }
+  function loveHits(t: Template) {
+    return emphasize.filter((w) => w.length > 2 && hay(t).includes(w)).length;
+  }
+  function proteinFamily(t: Template): string {
+    const h = hay(t);
+    if (/(ribeye|beef|steak|lamb|ground beef|patty)/.test(h)) return "ruminant";
+    if (/(salmon|sardine|mackerel|fish)/.test(h)) return "fish";
+    if (/(chicken|poultry)/.test(h)) return "poultry";
+    if (/(egg)/.test(h)) return "egg";
+    if (/(cheese|yoghurt|yogurt)/.test(h)) return "dairy";
+    return "other";
+  }
+
+  let lastFamily: string | null = null;
+
+  function scoreTemplate(
+    t: Template,
+    day: number,
+    slot: Meal["slot"],
+    candidates: Template[]
+  ): number {
+    let score = 0;
+    // Prefer unused titles (week + slot)
+    if (!usedTitles.has(t.title)) score += 40;
+    if (!usedBySlot[slot].has(t.title)) score += 25;
+    // Spread across the week
+    score += ((day * 3 + slotIndex(slot) + t.title.length) % candidates.length) * 0.01;
+
+    const loves = loveHits(t);
+    score += loves * 18;
+
+    if (needsCookedVegFocus && isCookedVeg(t)) {
+      score += cookedVegPlaced < cookedVegTarget ? 35 : 12;
+    }
+    if (wantsLose && isCarbMeal(t)) score -= 100;
+    if (wantsLose && !isCarbMeal(t)) score += 8;
+    if (wantsLose && /(protein|egg|beef|lamb|salmon|cheese)/.test(hay(t))) score += 6;
+
+    if (wantsGain && isCarbMeal(t)) {
+      const needMore = carbMealsPlaced < carbTarget;
+      // Schedule carb meals on most days at lunch or dinner
+      const carbSlot = slot === "Lunch" || slot === "Dinner";
+      score += needMore && carbSlot ? 40 : needMore ? 10 : 5;
+    }
+    if (intake.goal === "more-energy" && (isCookedVeg(t) || isCarbMeal(t) || t.flesh)) {
+      score += 6;
+    }
+    if (intake.goal === "calm-symptoms" && t.tier === "green") score += 10;
+    if (activeFlare && t.tier === "green") score += 15;
+
+    const fam = proteinFamily(t);
+    if (lastFamily && fam === lastFamily) score -= 20;
+    if (fam !== "other" && fam !== "egg") score += 2;
+
+    // Vegetarian honesty: prefer veg-centred plates over bare egg fallbacks when available
+    if (intake.dietType === "vegetarian" && isCookedVeg(t)) score += 20;
+    if (intake.dietType === "vegetarian" && /^three-egg|^boiled eggs|^omelette supper$/i.test(t.title) && cookedVegPlaced < cookedVegTarget) {
+      score -= 8;
+    }
+
+    return score;
+  }
 
   function choose(
     options: Template[],
@@ -917,19 +1050,33 @@ export function generateMealPlan(
       if (nonFlesh.length) candidates = nonFlesh;
     }
 
-    const unused = candidates.filter((c) => !usedTitles.has(c.title));
-    const shortlist = unused.length ? unused : candidates;
-    // Spread days across the shortlist so consecutive days look different.
-    const chosen = shortlist[(day * 5 + slotIndex(slot) + shortlist.length) % shortlist.length];
+    // Never prefer empty — if cooked-veg needed and available, bias hard
+    if (needsCookedVegFocus && cookedVegPlaced < cookedVegTarget && (slot === "Lunch" || slot === "Dinner")) {
+      const veggy = candidates.filter(isCookedVeg);
+      if (veggy.length) candidates = veggy;
+    }
+
+    // Gain weight: push carb meals until target hit
+    if (wantsGain && carbMealsPlaced < carbTarget && (slot === "Lunch" || slot === "Dinner")) {
+      const carbs = candidates.filter(isCarbMeal);
+      if (carbs.length) candidates = carbs;
+    }
+
+    const ranked = [...candidates].sort(
+      (a, b) => scoreTemplate(b, day, slot, candidates) - scoreTemplate(a, day, slot, candidates)
+    );
+    const chosen = ranked[0];
     usedTitles.add(chosen.title);
+    usedBySlot[slot].add(chosen.title);
     if (chosen.flesh) fleshLeft--;
+    if (isCarbMeal(chosen)) carbMealsPlaced++;
+    if (isCookedVeg(chosen)) cookedVegPlaced++;
+    lastFamily = proteinFamily(chosen);
     return chosen;
   }
 
   function toMeal(t: Template, day: number): Meal {
     const items = [...t.items];
-    // For calm weeks, gently rotate an extra fermented mention on some dinners
-    // when the template doesn't already include one.
     const alreadyFermented = items.some((i) =>
       /sauerkraut|kimchi|pickle/i.test(i)
     );
@@ -953,16 +1100,19 @@ export function generateMealPlan(
   const days: DayPlan[] = [];
   for (let d = 0; d < 7; d++) {
     const meals: Meal[] = [];
+    lastFamily = null;
     for (const slot of ["Breakfast", "Lunch", "Dinner"] as const) {
       const chosen = choose(pool[slot], d, slot);
       if (!chosen) {
-        meals.push(safeFallback[slot]);
+        // Prefer any remaining unused option from other tiers before generic fallback
+        const any = pool[slot][0];
+        meals.push(any ? toMeal(any, d) : safeFallback[slot]);
         continue;
       }
       meals.push(toMeal(chosen, d));
     }
-    // Snack most days so fermented snacks also rotate in.
     if (d % 2 === 0 && pool.Snack.length) {
+      // Weight loss: skip banana/honey snacks (already filtered). Prefer ferment or broth.
       const s = choose(pool.Snack, d, "Snack");
       if (s) meals.push(toMeal(s, d));
     }
@@ -972,6 +1122,14 @@ export function generateMealPlan(
       meals,
     });
   }
+
+  const thinPool =
+    Math.min(pool.Breakfast.length, pool.Lunch.length, pool.Dinner.length) < 3;
+  const notes = buildPersonalNotes(intake, brief, {
+    cookedVegPlaced,
+    carbMealsPlaced,
+    thinPool,
+  });
 
   return {
     headline: `${intake.name ? intake.name.split(" ")[0] + "'s" : "Your"} 7-Day Gut Freedom Starter Plan`,
@@ -995,7 +1153,7 @@ export function generateMealPlan(
     ],
     hydrationAndSalt:
       "Salt more than you think, especially if things are moving fast, and keep water steady through the day. Warm bone broth counts.",
-    personalNotes: buildPersonalNotes(intake, brief),
+    personalNotes: notes,
     disclaimer:
       "This plan is educational, not medical advice. It's built on population-level patterns from Sameer's traffic-light approach — not on your labs, history or how your body is responding this week. It is not a substitute for care from your doctor, especially during an active flare. Two people with the same diagnosis can have completely different triggers, which is exactly why a plan built around you works better than a generic one.",
     generatedBy: "rules",
@@ -1015,20 +1173,48 @@ function buildIntro(intake: Intake): string {
       : intake.flareState === "calm"
         ? "Since things are relatively calm, we've kept a strong green foundation and gently folded in a few yellow foods — including small fermented sides — for you to test and watch."
         : "We've anchored this week on the green foundation and added a small number of yellow foods (including fermented vegetables) to test carefully.";
-  return `Hi ${first} — think of this as a starting map, not a life sentence. ${flareLine} Eat to appetite, salt your food, and pay attention to how each day feels.`;
+
+  let goalLine = "";
+  if (intake.goal === "lose-weight") {
+    goalLine =
+      " Fat-loss mode: no rice, banana or honey this week — protein, natural fats and (where they fit) well-cooked vegetables do the work.";
+  } else if (intake.goal === "gain-weight") {
+    goalLine =
+      " Weight-gain mode: white rice and generous animal fats show up across the week so you have soft calories to build from.";
+  } else if (intake.goal === "more-energy") {
+    goalLine =
+      " Energy focus: steady protein, salted meals, and enough fat so you're not running on fumes.";
+  } else if (intake.goal === "calm-symptoms") {
+    goalLine =
+      " Symptom-calm focus: keep the plate simple, green-first, and notice how each day feels.";
+  }
+
+  return `Hi ${first} — think of this as a starting map, not a life sentence. ${flareLine}${goalLine} Eat to appetite, salt your food, and pay attention to how each day feels.`;
 }
 
 function greenFoundationFor(intake: Intake): string[] {
   const flare = intake.flareState === "active-flare";
   if (intake.dietType === "vegetarian") {
-    const veg = [
-      "Eggs and egg yolks",
-      "Fermented / aged dairy and natural fats (butter, ghee) if tolerated",
-      "Well-cooked above-ground vegetables in butter or ghee (zucchini, green beans, soft spinach)",
-      "Sea salt and plenty of water",
-    ];
+    const veg: string[] = [];
+    if (!intake.restrictions.includes("egg-free")) {
+      veg.push("Eggs and egg yolks");
+    }
+    if (!intake.restrictions.includes("dairy-free")) {
+      veg.push(
+        "Fermented / aged dairy and natural fats (butter, ghee) if tolerated"
+      );
+      veg.push(
+        "Well-cooked above-ground vegetables in butter or ghee (zucchini, green beans, soft spinach)"
+      );
+    } else {
+      veg.push(
+        "Well-cooked above-ground vegetables in olive oil (zucchini, green beans, soft spinach)"
+      );
+      veg.push("Egg yolks and olive oil for fat (if eggs are allowed)");
+    }
+    veg.push("Sea salt and plenty of water");
     if (intake.goal === "gain-weight") {
-      veg.splice(2, 0, "White rice for gentle energy while you build weight");
+      veg.splice(Math.max(veg.length - 1, 0), 0, "White rice for gentle energy while you build weight");
     }
     return veg;
   }
@@ -1049,9 +1235,15 @@ function greenFoundationFor(intake: Intake): string[] {
   return base;
 }
 
-function buildPersonalNotes(intake: Intake, brief?: IntakeBrief): string[] {
+function buildPersonalNotes(
+  intake: Intake,
+  brief?: IntakeBrief,
+  stats?: { cookedVegPlaced: number; carbMealsPlaced: number; thinPool: boolean }
+): string[] {
   const notes: string[] = [];
   const first = intake.name ? intake.name.split(" ")[0] : "you";
+  const dairyFree = intake.restrictions.includes("dairy-free");
+  const eggFree = intake.restrictions.includes("egg-free");
 
   const inferred = (brief?.inferredRestrictions ?? []).filter(
     (r) => !intake.restrictions.includes(r)
@@ -1065,13 +1257,30 @@ function buildPersonalNotes(intake: Intake, brief?: IntakeBrief): string[] {
   }
 
   if (intake.dietType === "vegetarian") {
-    if (intake.goal === "lose-weight") {
+    if (eggFree && dairyFree) {
+      notes.push(
+        "Honest note: vegetarian + egg-free + dairy-free leaves very little in the green foundation for an inflamed gut. This week's plate is intentionally narrow — a call with Sameer is the right next step to fill gaps safely."
+      );
+    } else if (eggFree) {
+      notes.push(
+        "You're vegetarian and egg-free, so plates lean on aged cheese, ghee/butter and well-cooked above-ground vegetables where tolerated. The ancestral foundation still runs thin here — a consult helps fill the gaps."
+      );
+    } else if (dairyFree) {
+      notes.push(
+        "You're vegetarian and dairy-free, so we lean on eggs plus above-ground vegetables cooked soft in olive oil (not butter/ghee). That combination works for many people, but it's still a thinner foundation than a meat-based week."
+      );
+    } else if (intake.goal === "lose-weight") {
       notes.push(
         "You're vegetarian and aiming for fat loss, so this week centres on eggs, fermented dairy, and above-ground vegetables cooked soft in butter or ghee — not bananas or rice."
       );
     } else {
       notes.push(
         "You're eating vegetarian, so this plan leans on eggs, fermented dairy, and well-cooked vegetables in butter/ghee. Honest note: the ancestral foundation is animal-based, and a fully plant-based version has real gaps for an inflamed gut. This is where a quick call with Sameer can help you close those gaps safely."
+      );
+    }
+    if (stats && stats.cookedVegPlaced > 0) {
+      notes.push(
+        `We placed well-cooked above-ground vegetables on ${stats.cookedVegPlaced} meals this week so the plate isn't only eggs and cheese.`
       );
     }
   }
@@ -1082,12 +1291,24 @@ function buildPersonalNotes(intake: Intake, brief?: IntakeBrief): string[] {
   }
   if (intake.goal === "gain-weight") {
     notes.push(
-      "Because you want to gain weight, we've included white rice and generous fats. Eat to a comfortable fullness, and don't be shy with butter, ghee and tallow."
+      stats && stats.carbMealsPlaced > 0
+        ? `Because you want to gain weight, we scheduled about ${stats.carbMealsPlaced} soft-carb meals (white rice / gentle energy foods) across the week, plus generous fats. Eat to a comfortable fullness.`
+        : "Because you want to gain weight, lean into white rice and generous fats wherever they appear. Eat to a comfortable fullness — butter, ghee and tallow are your friends."
     );
   }
   if (intake.goal === "lose-weight") {
     notes.push(
-      "Because fat loss is your goal, we've left out starches and weight-gain carbs like banana and honey. Protein, natural fats, and well-cooked vegetables do the work this week."
+      "Because fat loss is your goal, we've left out starches and weight-gain carbs like banana and honey. Protein, natural fats, and well-cooked vegetables do the work this week — skip snacking on fruit."
+    );
+  }
+  if (intake.goal === "more-energy") {
+    notes.push(
+      "For energy: salt every meal, don't fear fat, and keep protein steady through the day. If afternoons crash, the free call is where we troubleshoot."
+    );
+  }
+  if (intake.goal === "calm-symptoms") {
+    notes.push(
+      "Symptom-calm week: keep meals boring on purpose. If something worsens symptoms, drop it and note it for your call."
     );
   }
   if (!activeFlareNote(intake)) {
@@ -1095,15 +1316,20 @@ function buildPersonalNotes(intake: Intake, brief?: IntakeBrief): string[] {
       "We've woven in small fermented sides — sauerkraut, mild kimchi, or brine cucumber pickles (not achar). Start tiny and only keep what your gut tolerates."
     );
   }
-  if (intake.restrictions.includes("dairy-free")) {
+  if (dairyFree) {
     notes.push(
-      "Dairy is out, so fats come from tallow, ghee-free cooking and egg yolks. Bone broth becomes even more useful for you."
+      "Dairy is out, so fats come from tallow, olive oil and egg yolks where they fit. Bone broth becomes even more useful for you."
+    );
+  }
+  if (stats?.thinPool) {
+    notes.push(
+      "Your combination of diet style and restrictions shrinks the safe meal pool — you may see similar anchors repeated. That's caution, not laziness; a personalised call widens options safely."
     );
   }
   const enjoys = parseFoodList(intake.loves || "");
   if (enjoys.length) {
     notes.push(
-      `You mentioned you enjoy ${enjoys.join(", ")} — where those fit the green or yellow tiers, lean into them; where they don't, that's a great thing to talk through on a call.`
+      `You mentioned you enjoy ${enjoys.join(", ")} — we biased the week toward those where they fit the green or yellow tiers.`
     );
   }
   for (const flag of brief?.safetyFlags ?? []) {
