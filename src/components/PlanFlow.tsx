@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   analyzeFormInput,
   firstName,
@@ -13,6 +14,7 @@ import {
 import { Logo } from "./Logo";
 
 type Diet = "meat-eater" | "semi-vegetarian" | "vegetarian";
+type PaidStatus = "unknown" | "checking" | "paid" | "unpaid";
 
 interface FormState {
   name: string;
@@ -71,6 +73,19 @@ async function parseApiResponse(res: Response): Promise<Record<string, unknown>>
   }
 }
 
+function navigateInContext(url: string, embed: boolean) {
+  if (!embed || url.startsWith("/")) {
+    window.location.href = url;
+    return;
+  }
+  // External checkout (Kajabi/Stripe): break out of the iframe.
+  if (window.top && window.top !== window) {
+    window.top.location.href = url;
+  } else {
+    window.location.href = url;
+  }
+}
+
 type StepKey =
   | "name"
   | "email"
@@ -91,18 +106,55 @@ interface StepDef {
 }
 
 export function PlanFlow() {
-  const [form, setForm] = useState<FormState>(initial);
+  const searchParams = useSearchParams();
+  const embed = searchParams.get("embed") === "1";
+  const emailFromUrl = searchParams.get("email")?.trim() ?? "";
+  const emailLocked = embed && Boolean(emailFromUrl);
+
+  const [form, setForm] = useState<FormState>(() =>
+    emailFromUrl ? { ...initial, email: emailFromUrl } : initial
+  );
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [paidStatus, setPaidStatus] = useState<PaidStatus>("unknown");
 
   const set = useCallback(
     <K extends keyof FormState>(key: K, value: FormState[K]) => {
+      if (key === "email" && emailLocked) return;
       setForm((f) => ({ ...f, [key]: value }));
       setError(null);
+      if (key === "email") setPaidStatus("unknown");
     },
-    []
+    [emailLocked]
   );
+
+  const checkPaid = useCallback(async (email: string) => {
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setPaidStatus("unknown");
+      return;
+    }
+    setPaidStatus("checking");
+    try {
+      const res = await fetch(
+        `/api/paid/check?email=${encodeURIComponent(trimmed)}`
+      );
+      const data = (await res.json()) as { paid?: boolean };
+      setPaidStatus(data.paid ? "paid" : "unpaid");
+    } catch {
+      setPaidStatus("unknown");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!embed) return;
+    if (emailFromUrl) void checkPaid(emailFromUrl);
+  }, [embed, emailFromUrl, checkPaid]);
+
+  const alreadyPaid = embed
+    ? paidStatus === "paid"
+    : SKIP_PAYWALL || paidStatus === "paid";
 
   const insights = useMemo(() => analyzeFormInput(form), [form]);
   const placeholders = useMemo(
@@ -167,17 +219,23 @@ export function PlanFlow() {
     }
   }, [current.key, form]);
 
-  const next = useCallback((opts?: { skipValidation?: boolean }) => {
-    if (!opts?.skipValidation) {
-      const err = validateStep();
-      if (err) {
-        setError(err);
-        return;
+  const next = useCallback(
+    async (opts?: { skipValidation?: boolean }) => {
+      if (!opts?.skipValidation) {
+        const err = validateStep();
+        if (err) {
+          setError(err);
+          return;
+        }
       }
-    }
-    setError(null);
-    setStepIndex((i) => Math.min(i + 1, steps.length - 1));
-  }, [validateStep, steps.length]);
+      if (current.key === "email" && embed) {
+        await checkPaid(form.email);
+      }
+      setError(null);
+      setStepIndex((i) => Math.min(i + 1, steps.length - 1));
+    },
+    [validateStep, steps.length, current.key, embed, checkPaid, form.email]
+  );
 
   const back = useCallback(() => {
     setError(null);
@@ -207,19 +265,19 @@ export function PlanFlow() {
       const checkoutRes = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: orderData.orderId }),
+        body: JSON.stringify({ orderId: orderData.orderId, embed }),
       });
       const checkout = await parseApiResponse(checkoutRes);
       if (!checkoutRes.ok) {
         throw new Error(String(checkout.error ?? "Payment setup failed"));
       }
 
-      window.location.href = String(checkout.url);
+      navigateInContext(String(checkout.url), embed);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
       setSubmitting(false);
     }
-  }, [form]);
+  }, [form, embed]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -240,8 +298,16 @@ export function PlanFlow() {
     window.setTimeout(() => next({ skipValidation: true }), 220);
   }, [next]);
 
+  const submitLabel = submitting
+    ? alreadyPaid || SKIP_PAYWALL
+      ? "Crafting your plan…"
+      : "Setting up…"
+    : alreadyPaid || SKIP_PAYWALL
+      ? "Craft my plan →"
+      : `Pay ${PRICE_LABEL} & craft my plan`;
+
   return (
-    <div className="min-h-screen bg-cream">
+    <div className={embed ? "min-h-[100dvh] bg-cream" : "min-h-screen bg-cream"}>
       <div className="fixed inset-x-0 top-0 z-10 h-1.5 bg-line/60">
         <div
           className="h-full bg-green transition-all duration-300"
@@ -249,15 +315,40 @@ export function PlanFlow() {
         />
       </div>
 
-      <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-5 py-6">
+      <div
+        className={`mx-auto flex max-w-2xl flex-col px-5 ${
+          embed ? "min-h-[100dvh] py-4" : "min-h-screen py-6"
+        }`}
+      >
         <div className="flex items-center justify-between">
-          <Logo />
+          {!embed && <Logo />}
+          {embed && (
+            <p className="font-display text-sm font-bold text-teal-deep">
+              Gut Freedom · Questionnaire
+            </p>
+          )}
           <span className="text-xs font-semibold text-muted">
             {clampedIndex + 1} / {steps.length}
           </span>
         </div>
 
-        <div className="flex flex-1 flex-col justify-center py-8">
+        {embed && paidStatus === "paid" && (
+          <p className="mt-3 rounded-xl border border-green/30 bg-green/5 px-3 py-2 text-xs text-ink">
+            Payment found — finish these questions and we&apos;ll email your plan.
+          </p>
+        )}
+        {embed && paidStatus === "unpaid" && form.email && (
+          <p className="mt-3 rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-xs text-ink">
+            No payment matched this email yet. Use the same email from checkout,
+            or continue and we&apos;ll send you to pay.
+          </p>
+        )}
+
+        <div
+          className={`flex flex-1 flex-col justify-center ${
+            embed ? "py-5" : "py-8"
+          }`}
+        >
           <div key={current.key} className="animate-fade-in-up">
             {renderStep({
               key: current.key,
@@ -268,6 +359,9 @@ export function PlanFlow() {
               placeholders,
               fn,
               applySuggestedRestrictions,
+              embed,
+              emailLocked,
+              alreadyPaid: alreadyPaid || SKIP_PAYWALL,
             })}
 
             {error && (
@@ -289,15 +383,11 @@ export function PlanFlow() {
                   disabled={submitting}
                   className="rounded-full bg-teal-deep px-7 py-3 font-display font-bold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
                 >
-                  {submitting
-                    ? "Setting up…"
-                    : SKIP_PAYWALL
-                      ? "Send my plan →"
-                      : `Pay ${PRICE_LABEL} & craft my plan`}
+                  {submitLabel}
                 </button>
               ) : (
                 <button
-                  onClick={() => next()}
+                  onClick={() => void next()}
                   className="rounded-full bg-teal-deep px-7 py-3 font-display font-bold text-white shadow-sm transition hover:brightness-110"
                 >
                   {current.key === "understood" ? "Looks right →" : "OK →"}
@@ -327,10 +417,25 @@ interface RenderCtx {
   placeholders: ReturnType<typeof smartPlaceholders>;
   fn: string;
   applySuggestedRestrictions: () => void;
+  embed: boolean;
+  emailLocked: boolean;
+  alreadyPaid: boolean;
 }
 
 function renderStep(ctx: RenderCtx) {
-  const { key, form, set, advanceSoon, insights, placeholders, fn, applySuggestedRestrictions } = ctx;
+  const {
+    key,
+    form,
+    set,
+    advanceSoon,
+    insights,
+    placeholders,
+    fn,
+    applySuggestedRestrictions,
+    embed,
+    emailLocked,
+    alreadyPaid,
+  } = ctx;
 
   switch (key) {
     case "name":
@@ -354,15 +459,25 @@ function renderStep(ctx: RenderCtx) {
         <Screen
           eyebrow={fn ? `${greeting(form.name)} — almost` : "Where should we send it?"}
           title="What's your email?"
-          help="We'll email your finished 7-day plan here. No spam."
+          help={
+            embed
+              ? "Use the same email you used at checkout — that's how we match your payment. We'll send the plan here."
+              : "We'll email your finished 7-day plan here. No spam."
+          }
         >
           <TextInput
             type="email"
             value={form.email}
             onChange={(v) => set("email", v)}
             placeholder="you@example.com"
-            autoFocus
+            autoFocus={!emailLocked}
+            disabled={emailLocked}
           />
+          {emailLocked && (
+            <p className="mt-2 text-xs text-muted">
+              Locked to your purchase email.
+            </p>
+          )}
         </Screen>
       );
 
@@ -702,7 +817,9 @@ function renderStep(ctx: RenderCtx) {
       );
 
     case "review":
-      return <Review form={form} insights={insights} />;
+      return (
+        <Review form={form} insights={insights} alreadyPaid={alreadyPaid} />
+      );
   }
 }
 
@@ -799,17 +916,19 @@ function TextInput({
   placeholder,
   type = "text",
   autoFocus,
+  disabled,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
   autoFocus?: boolean;
+  disabled?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (autoFocus) ref.current?.focus();
-  }, [autoFocus]);
+    if (autoFocus && !disabled) ref.current?.focus();
+  }, [autoFocus, disabled]);
   return (
     <input
       ref={ref}
@@ -817,7 +936,9 @@ function TextInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="brand-focus w-full border-b-2 border-line bg-transparent pb-2 text-2xl text-ink placeholder:text-muted/50 focus:border-green"
+      disabled={disabled}
+      readOnly={disabled}
+      className="brand-focus w-full border-b-2 border-line bg-transparent pb-2 text-2xl text-ink placeholder:text-muted/50 focus:border-green disabled:opacity-70"
     />
   );
 }
@@ -964,9 +1085,11 @@ function SmallField({
 function Review({
   form,
   insights,
+  alreadyPaid,
 }: {
   form: FormState;
   insights: ReturnType<typeof analyzeFormInput>;
+  alreadyPaid: boolean;
 }) {
   const rows: [string, string][] = [
     ["Name", form.name || "—"],
@@ -987,7 +1110,7 @@ function Review({
       eyebrow="Almost there"
       title="Quick review, then we craft your plan"
       help={
-        SKIP_PAYWALL
+        alreadyPaid || SKIP_PAYWALL
           ? "We'll email your personalized 7-day plan right away."
           : `One-time ${PRICE_LABEL}. Hand-finished and emailed to you — not instant on screen.`
       }

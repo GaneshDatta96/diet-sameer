@@ -38,6 +38,8 @@ export function ConfirmView() {
   const sessionId = params.get("session_id");
   const mock = params.get("mock");
   const kajabi = params.get("kajabi") === "1";
+  const embed = params.get("embed") === "1";
+  const alreadyPaidRedirect = embed && !sessionId && !mock && !kajabi;
 
   const [state, setState] = useState<"working" | "done" | "error">("working");
   const [result, setResult] = useState<ConfirmResult | null>(null);
@@ -85,10 +87,12 @@ export function ConfirmView() {
     };
   }, [orderId, sessionId, mock, kajabi]);
 
+  const planHref = embed ? "/plan?embed=1" : "/plan";
+
   if (!orderId) {
     return (
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-5 py-8">
-        <Logo />
+        {!embed && <Logo />}
         <div className="flex flex-1 flex-col justify-center py-10">
           <div className="rounded-2xl border border-rust/30 bg-rust/5 p-6 text-center">
             <h1 className="font-display text-2xl font-bold text-rust">
@@ -96,7 +100,7 @@ export function ConfirmView() {
             </h1>
             <p className="mt-2 text-ink">Missing order reference.</p>
             <a
-              href="/plan"
+              href={planHref}
               className="mt-5 inline-block rounded-full bg-teal-deep px-6 py-3 font-display font-bold text-white"
             >
               Try again
@@ -118,8 +122,17 @@ export function ConfirmView() {
     : null;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-5 py-8">
-      <Logo />
+    <div
+      className={`mx-auto flex max-w-2xl flex-col px-5 ${
+        embed ? "min-h-[100dvh] py-4" : "min-h-screen py-8"
+      }`}
+    >
+      {!embed && <Logo />}
+      {embed && (
+        <p className="font-display text-sm font-bold text-teal-deep">
+          Gut Freedom
+        </p>
+      )}
 
       <div className="flex flex-1 flex-col justify-center py-10">
         {state === "working" && (
@@ -130,7 +143,9 @@ export function ConfirmView() {
               <span className="h-3 w-3 animate-bounce rounded-full bg-rust" />
             </div>
             <h1 className="font-display text-2xl font-bold text-teal-deep">
-              {mock === "1" ? "Sending your plan…" : "Confirming your order…"}
+              {mock === "1" || alreadyPaidRedirect
+                ? "Sending your plan…"
+                : "Confirming your order…"}
             </h1>
             <p className="mt-2 text-muted">One moment.</p>
           </div>
@@ -147,7 +162,7 @@ export function ConfirmView() {
               we&apos;ll sort it out right away.
             </p>
             <a
-              href="/plan"
+              href={planHref}
               className="mt-5 inline-block rounded-full bg-teal-deep px-6 py-3 font-display font-bold text-white"
             >
               Try again

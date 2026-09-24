@@ -17,6 +17,24 @@ create index if not exists orders_due_idx
   on orders (created_at)
   where status = 'paid';
 
+-- Pay-first Kajabi purchases waiting for the Vercel questionnaire.
+create table if not exists paid_entitlements (
+  id text primary key,
+  email text not null,
+  created_at bigint not null,
+  payment_ref text not null,
+  offer_id text,
+  used_at bigint,
+  used_order_id text
+);
+
+create index if not exists paid_entitlements_email_unused_idx
+  on paid_entitlements (lower(email), created_at desc)
+  where used_at is null;
+
+create unique index if not exists paid_entitlements_payment_ref_uidx
+  on paid_entitlements (payment_ref);
+
 -- Server-only access via the service role key.
--- Keep Row Level Security on; no public policies needed.
 alter table orders enable row level security;
+alter table paid_entitlements enable row level security;

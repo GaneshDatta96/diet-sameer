@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { buildKajabiCheckoutUrl } from "@/lib/kajabi";
 import { config } from "@/lib/config";
+import { claimPaidEntitlement } from "@/lib/entitlements";
+import { fulfillOrder, fulfillResponseBody } from "@/lib/fulfillOrder";
 import { getOrder } from "@/lib/store";
 
 /**
- * Create a checkout session.
- * Priority: Kajabi offer → Stripe → mock (local review).
+ * Create a checkout session — or fulfill immediately when the email
+ * already has a Kajabi paid entitlement (pay-first / embed questionnaire).
  */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -19,10 +21,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
+  // Already-paid via Kajabi (questionnaire after checkout).
+  try {
+    const entitlement = await claimPaidEntitlement(order.intake.email, orderId);
+    if (entitlement) {
+      const result = await fulfillOrder(orderId, entitlement.paymentRef);
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error ?? "Could not send your plan" },
+          { status: 502 }
+        );
+      }
+      const embed = (body as { embed?: boolean })?.embed ? "&embed=1" : "";
+      return NextResponse.json({
+        ...fulfillResponseBody(result),
+        alreadyPaid: true,
+        url: `/confirm?orderId=${orderId}${embed}`,
+      });
+    }
+  } catch (err) {
+    console.error("[checkout] entitlement claim failed:", err);
+  }
+
   if (config.skipPaywall) {
+    const embedQs = (body as { embed?: boolean })?.embed ? "&embed=1" : "";
     return NextResponse.json({
       mock: true,
-      url: `/confirm?orderId=${orderId}&mock=1`,
+      url: `/confirm?orderId=${orderId}&mock=1${embedQs}`,
     });
   }
 

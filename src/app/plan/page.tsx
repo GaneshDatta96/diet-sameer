@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { PlanFlow } from "@/components/PlanFlow";
 
 export const metadata = {
@@ -5,5 +6,15 @@ export const metadata = {
 };
 
 export default function PlanPage() {
-  return <PlanFlow />;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-cream text-muted">
+          Loading…
+        </div>
+      }
+    >
+      <PlanFlow />
+    </Suspense>
+  );
 }

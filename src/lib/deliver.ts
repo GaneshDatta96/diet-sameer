@@ -1,5 +1,10 @@
-import { sendPlanEmail } from "./email";
-import { getDueOrders, getOrder, updateOrder } from "./store";
+import { sendFeedbackEmail, sendPlanEmail } from "./email";
+import {
+  getDueFeedbackOrders,
+  getDueOrders,
+  getOrder,
+  updateOrder,
+} from "./store";
 
 /**
  * Deliver a single order immediately (cron fallback for orders that were not
@@ -30,6 +35,27 @@ export async function deliverDueOrders(): Promise<number> {
   let sent = 0;
   for (const o of due) {
     if (await deliverOrder(o.id)) sent++;
+  }
+  return sent;
+}
+
+/** Send due 48h feedback emails (SMTP path; Resend schedules at fulfill). */
+export async function sendDueFeedbackEmails(): Promise<number> {
+  const due = await getDueFeedbackOrders();
+  let sent = 0;
+  for (const o of due) {
+    const firstName = o.intake.name?.split(" ")[0] ?? "there";
+    const result = await sendFeedbackEmail({
+      to: o.intake.email,
+      firstName,
+    });
+    if (result.ok && !result.deferred) {
+      await updateOrder(o.id, {
+        feedbackSentAt: Date.now(),
+        feedbackEmailId: result.id,
+      });
+      sent++;
+    }
   }
   return sent;
 }

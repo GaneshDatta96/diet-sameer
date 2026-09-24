@@ -36,6 +36,16 @@ export const config = {
     maxMinutes: Number(process.env.DELIVERY_MAX_MINUTES ?? 0),
   },
 
+  /**
+   * Follow-up feedback email after purchase (not after plan delivery).
+   * SMTP path: cron at /api/cron/deliver sends when due.
+   * Resend path: scheduled_at at fulfill time.
+   */
+  feedback: {
+    delayHours: Number(process.env.FEEDBACK_DELAY_HOURS ?? 48),
+    formUrl: process.env.FEEDBACK_FORM_URL ?? "",
+  },
+
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY ?? "",
     priceId: process.env.STRIPE_PRICE_ID ?? "",

@@ -128,4 +128,10 @@ export interface Order {
   paymentRef?: string;
   /** Resend message id when delivery is scheduled via scheduled_at. */
   resendEmailId?: string;
+  /** epoch ms when the post-purchase feedback email should go out. */
+  feedbackAt?: number;
+  /** epoch ms when the feedback email was actually sent. */
+  feedbackSentAt?: number;
+  /** Resend message id when feedback is scheduled via scheduled_at. */
+  feedbackEmailId?: string;
 }

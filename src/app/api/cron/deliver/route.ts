@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
-import { deliverDueOrders } from "@/lib/deliver";
+import { deliverDueOrders, sendDueFeedbackEmails } from "@/lib/deliver";
 
 /**
- * Manual delivery fallback for orders that were not scheduled via Resend.
- * Not required in normal operation — Resend scheduled_at handles delivery.
+ * Daily cron:
+ * - Plan delivery fallback (orders not scheduled via Resend)
+ * - 48h post-purchase feedback emails (SMTP path)
+ *
+ * Vercel Cron sends Authorization: Bearer $CRON_SECRET when set.
  */
 async function handle(req: Request) {
   if (config.cronSecret) {
@@ -16,8 +19,9 @@ async function handle(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
-  const sent = await deliverDueOrders();
-  return NextResponse.json({ ok: true, delivered: sent });
+  const delivered = await deliverDueOrders();
+  const feedback = await sendDueFeedbackEmails();
+  return NextResponse.json({ ok: true, delivered, feedback });
 }
 
 export async function GET(req: Request) {

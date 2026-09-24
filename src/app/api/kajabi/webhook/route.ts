@@ -4,12 +4,16 @@ import {
   verifyKajabiWebhookSecret,
 } from "@/lib/kajabi";
 import { config } from "@/lib/config";
+import { recordPaidEntitlement } from "@/lib/entitlements";
 import { fulfillOrder, fulfillResponseBody } from "@/lib/fulfillOrder";
 import { findPendingOrderByEmail, getOrder } from "@/lib/store";
 
 /**
  * Kajabi Payment Succeeded webhook.
- * Configure in Kajabi: Settings → Integrations → Webhooks → Payment Succeeded
+ * Pay-first flow: always records a paid entitlement by email.
+ * If a pending Vercel order already exists, fulfills it immediately.
+ * Otherwise the customer completes the questionnaire iframe next.
+ *
  * URL: https://your-app.vercel.app/api/kajabi/webhook?secret=YOUR_SECRET
  */
 export async function POST(req: Request) {
@@ -33,19 +37,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, skipped: "offer mismatch" });
   }
 
-  let order = orderId ? await getOrder(orderId) : undefined;
-  if (!order && email) {
-    order = await findPendingOrderByEmail(email);
-  }
-
-  if (!order) {
-    console.error("[kajabi/webhook] no matching order", { email, orderId });
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  if (!email) {
+    return NextResponse.json({ error: "Missing email" }, { status: 400 });
   }
 
   const paymentRef = transactionId
     ? `kajabi:${transactionId}`
     : `kajabi:${Date.now()}`;
+
+  await recordPaidEntitlement({
+    email,
+    paymentRef,
+    offerId: offerId ?? undefined,
+  });
+
+  let order = orderId ? await getOrder(orderId) : undefined;
+  if (!order) {
+    order = await findPendingOrderByEmail(email);
+  }
+
+  if (!order) {
+    // Pay-first: questionnaire comes after checkout.
+    return NextResponse.json({
+      ok: true,
+      awaitingIntake: true,
+      email: email.trim().toLowerCase(),
+    });
+  }
 
   const result = await fulfillOrder(order.id, paymentRef);
   if (!result.ok) {
