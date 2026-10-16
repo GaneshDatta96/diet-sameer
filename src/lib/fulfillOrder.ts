@@ -1,5 +1,6 @@
 import { deliveryWindowHours, randomDeliveryDelayMs } from "./config";
-import { sendFeedbackEmail, sendPlanEmail } from "./email";
+import { sendDay7Email, sendFeedbackEmail, sendPlanEmail } from "./email";
+import { day7DueAt } from "./day7Email";
 import { feedbackDueAt } from "./feedbackEmail";
 import { syncOrderToKajabi } from "./kajabi";
 import { getOrder, updateOrder } from "./store";
@@ -9,6 +10,7 @@ export interface FulfillResult {
   ok: boolean;
   deliverAt?: number;
   feedbackAt?: number;
+  day7At?: number;
   alreadyDone?: boolean;
   error?: string;
 }
@@ -28,6 +30,7 @@ export async function fulfillOrder(
       ok: true,
       deliverAt: order.deliverAt,
       feedbackAt: order.feedbackAt,
+      day7At: order.day7At,
       alreadyDone: true,
     };
   }
@@ -37,6 +40,7 @@ export async function fulfillOrder(
   const now = Date.now();
   const deliverAt = delayMs > 0 ? now + delayMs : now;
   const feedbackAt = feedbackDueAt(now);
+  const day7At = day7DueAt(now);
   const firstName = order.intake.name?.split(" ")[0] ?? "there";
 
   const email = await sendPlanEmail({
@@ -54,11 +58,17 @@ export async function fulfillOrder(
     };
   }
 
-  // Schedule feedback: Resend uses scheduled_at; SMTP defers to cron.
+  // Schedule feedback + Day 7: Resend uses scheduled_at; SMTP defers to cron.
   const feedback = await sendFeedbackEmail({
     to: order.intake.email,
     firstName,
     scheduledAt: feedbackAt,
+  });
+
+  const day7 = await sendDay7Email({
+    to: order.intake.email,
+    firstName,
+    scheduledAt: day7At,
   });
 
   await updateOrder(orderId, {
@@ -73,13 +83,18 @@ export async function fulfillOrder(
       feedback.ok && !feedback.deferred && feedbackAt <= now
         ? now
         : undefined,
+    day7At,
+    day7EmailId: day7.deferred ? undefined : day7.id,
+    day7SentAt:
+      day7.ok && !day7.deferred && day7At <= now ? now : undefined,
   });
 
+  // Tags meal-plan buyers in Kajabi (KAJABI_TAG_ID) so promo sequences can suppress them.
   await syncOrderToKajabi(order.intake, orderId).catch((err) =>
     console.error("[kajabi] contact sync failed:", err)
   );
 
-  return { ok: true, deliverAt, feedbackAt };
+  return { ok: true, deliverAt, feedbackAt, day7At };
 }
 
 export function fulfillResponseBody(result: FulfillResult) {
@@ -87,6 +102,7 @@ export function fulfillResponseBody(result: FulfillResult) {
     ok: result.ok,
     deliverAt: result.deliverAt,
     feedbackAt: result.feedbackAt,
+    day7At: result.day7At,
     window: deliveryWindowHours(),
     alreadyDone: result.alreadyDone,
   };

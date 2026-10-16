@@ -1,5 +1,6 @@
-import { sendFeedbackEmail, sendPlanEmail } from "./email";
+import { sendDay7Email, sendFeedbackEmail, sendPlanEmail } from "./email";
 import {
+  getDueDay7Orders,
   getDueFeedbackOrders,
   getDueOrders,
   getOrder,
@@ -53,6 +54,27 @@ export async function sendDueFeedbackEmails(): Promise<number> {
       await updateOrder(o.id, {
         feedbackSentAt: Date.now(),
         feedbackEmailId: result.id,
+      });
+      sent++;
+    }
+  }
+  return sent;
+}
+
+/** Send due Day 7 Intensive + call emails (SMTP path; Resend schedules at fulfill). */
+export async function sendDueDay7Emails(): Promise<number> {
+  const due = await getDueDay7Orders();
+  let sent = 0;
+  for (const o of due) {
+    const firstName = o.intake.name?.split(" ")[0] ?? "there";
+    const result = await sendDay7Email({
+      to: o.intake.email,
+      firstName,
+    });
+    if (result.ok && !result.deferred) {
+      await updateOrder(o.id, {
+        day7SentAt: Date.now(),
+        day7EmailId: result.id,
       });
       sent++;
     }

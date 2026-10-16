@@ -122,7 +122,28 @@ export function renderPlanEmail(plan: MealPlan, firstName: string): string {
             .join("")}
         </td></tr>
 
-        <tr><td style="padding:20px 32px;">
+        <tr><td style="padding:16px 32px 8px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff8e8;border:1px solid #f0d48a;border-radius:14px;">
+            <tr><td style="padding:22px;">
+              <div style="font-family:Poppins,Arial,sans-serif;color:${teal};font-size:11px;letter-spacing:1.5px;font-weight:700;text-transform:uppercase;">${escape(
+                config.intensive.priceLabel
+              )} · Next step</div>
+              <div style="font-family:Poppins,Arial,sans-serif;color:${teal};font-size:18px;font-weight:700;margin-top:4px;">${escape(
+                config.intensive.name
+              )}</div>
+              <div style="color:${muted};font-size:14px;line-height:1.6;margin:8px 0 14px;">${escape(
+                config.intensive.blurb
+              )}</div>
+              <a href="${
+                config.intensive.checkoutUrl || config.brand.bookCallUrl
+              }" style="display:inline-block;background:#e6a324;color:${teal};font-family:Poppins,Arial,sans-serif;font-weight:700;text-decoration:none;padding:12px 20px;border-radius:999px;font-size:14px;">Get the Intensive · ${escape(
+                config.intensive.priceLabel
+              )} →</a>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <tr><td style="padding:12px 32px 20px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="background:${teal};border-radius:14px;">
             <tr><td style="padding:24px;">
               <div style="font-family:Poppins,Arial,sans-serif;color:#fff;font-size:19px;font-weight:700;">Ready to draw <span style="color:#e6a324;">your</span> map?</div>

@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { config } from "./config";
+import { renderDay7Email } from "./day7Email";
 import { renderFeedbackEmail } from "./feedbackEmail";
 import { renderPlanEmail } from "./planEmail";
 import { MealPlan } from "./types";
@@ -13,6 +14,13 @@ interface SendPlanArgs {
 }
 
 interface SendFeedbackArgs {
+  to: string;
+  firstName: string;
+  /** When set, Resend holds until this time. SMTP ignores (cron sends later). */
+  scheduledAt?: number;
+}
+
+interface SendDay7Args {
   to: string;
   firstName: string;
   /** When set, Resend holds until this time. SMTP ignores (cron sends later). */
@@ -159,4 +167,39 @@ export async function sendFeedbackEmail({
     `\n[email:mock] feedback To: ${to}\n[email:mock] Subject: ${subject}\n`
   );
   return { ok: true, id: "mock-feedback" };
+}
+
+/** Send or schedule the Day 7 follow-up (Intensive + strategy call). */
+export async function sendDay7Email({
+  to,
+  firstName,
+  scheduledAt,
+}: SendDay7Args): Promise<{ ok: boolean; id?: string; deferred?: boolean }> {
+  const subject = firstName
+    ? `${firstName}, week one with your Gut Freedom plan`
+    : "Week one with your Gut Freedom plan";
+  const html = renderDay7Email(firstName || "there");
+
+  if (config.smtp) {
+    if (scheduledAt && scheduledAt > Date.now()) {
+      return { ok: true, deferred: true };
+    }
+    console.log(`[email] day7 via SMTP (${config.smtp.host}) → ${to}`);
+    return sendViaSmtp(to, subject, html);
+  }
+
+  if (config.resend.enabled) {
+    console.log(`[email] day7 via Resend → ${to}`);
+    return sendViaResend(to, subject, html, scheduledAt);
+  }
+
+  if (process.env.VERCEL === "1") {
+    console.error("[email] Missing mail config for day7 send.");
+    return { ok: false };
+  }
+
+  console.log(
+    `\n[email:mock] day7 To: ${to}\n[email:mock] Subject: ${subject}\n`
+  );
+  return { ok: true, id: "mock-day7" };
 }

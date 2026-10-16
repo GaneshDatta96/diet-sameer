@@ -11,7 +11,27 @@ export const config = {
     site: "https://www.sameerdossani.net",
     bookCallUrl:
       process.env.NEXT_PUBLIC_BOOK_CALL_URL ??
-      "https://www.sameerdossani.net/BookNow",
+      "https://calendly.com/sameer-dossani/30min",
+  },
+
+  /**
+   * $39 Gut Freedom Intensive upsell (Kajabi offer checkout URL).
+   * Set NEXT_PUBLIC_INTENSIVE_CHECKOUT_URL once the Kajabi offer is live.
+   */
+  intensive: {
+    name: "Gut Freedom Intensive",
+    priceLabel: process.env.NEXT_PUBLIC_INTENSIVE_PRICE_LABEL ?? "$39",
+    checkoutUrl:
+      process.env.NEXT_PUBLIC_INTENSIVE_CHECKOUT_URL ??
+      process.env.KAJABI_INTENSIVE_CHECKOUT_URL ??
+      "https://www.sameerdossani.net/offers/K2rgsiSg/checkout",
+    blurb:
+      "A focused next step after your starter plan — deeper structure, clearer priorities, and support to turn seven days into a lasting map.",
+    bullets: [
+      "Clear priorities for the next stretch beyond day 7",
+      "How to read your body’s response without guesswork",
+      "A bridge toward 1:1 coaching if you want it later",
+    ],
   },
 
   price: {
@@ -44,6 +64,11 @@ export const config = {
   feedback: {
     delayHours: Number(process.env.FEEDBACK_DELAY_HOURS ?? 48),
     formUrl: process.env.FEEDBACK_FORM_URL ?? "",
+  },
+
+  /** Day-7 follow-up after purchase (SMTP via cron; Resend can schedule). */
+  day7: {
+    delayDays: Number(process.env.DAY7_DELAY_DAYS ?? 7),
   },
 
   stripe: {

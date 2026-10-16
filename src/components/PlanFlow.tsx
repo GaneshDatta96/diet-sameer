@@ -855,7 +855,7 @@ function ConsultNudge() {
       <a
         href={
           process.env.NEXT_PUBLIC_BOOK_CALL_URL ??
-          "https://www.sameerdossani.net/BookNow"
+          "https://calendly.com/sameer-dossani/30min"
         }
         className="mt-3 inline-block text-sm font-semibold text-teal-deep underline-offset-2 hover:underline"
       >

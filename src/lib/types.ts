@@ -134,4 +134,10 @@ export interface Order {
   feedbackSentAt?: number;
   /** Resend message id when feedback is scheduled via scheduled_at. */
   feedbackEmailId?: string;
+  /** epoch ms when the Day 7 follow-up email should go out. */
+  day7At?: number;
+  /** epoch ms when the Day 7 email was actually sent. */
+  day7SentAt?: number;
+  /** Resend message id when Day 7 is scheduled via scheduled_at. */
+  day7EmailId?: string;
 }

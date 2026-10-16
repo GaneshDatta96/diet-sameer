@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Logo } from "./Logo";
 import { BookCallCard } from "./BookCallCard";
+import { IntensiveOfferCard } from "./IntensiveOfferCard";
 
 interface ConfirmResult {
   ok: boolean;
@@ -227,6 +228,10 @@ export function ConfirmView() {
                 Your plan is generic and educational — based on population-level
                 patterns, not your labs or history, and not medical advice.
               </p>
+            </div>
+
+            <div className="mt-6">
+              <IntensiveOfferCard />
             </div>
 
             <div className="mt-6">

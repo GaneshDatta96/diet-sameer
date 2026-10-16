@@ -232,3 +232,34 @@ export async function getDueFeedbackOrders(now = Date.now()): Promise<Order[]> {
   const all = await readAllFile();
   return Object.values(all).filter(isDue);
 }
+
+/** Paid/delivered orders whose Day 7 email is due (SMTP / cron path). */
+export async function getDueDay7Orders(now = Date.now()): Promise<Order[]> {
+  const isDue = (o: Order) =>
+    (o.status === "paid" || o.status === "delivered") &&
+    o.day7At != null &&
+    o.day7At <= now &&
+    !o.day7SentAt &&
+    !o.day7EmailId;
+
+  const sb = getSupabase();
+
+  if (sb) {
+    const { data, error } = await sb
+      .from("orders")
+      .select("payload")
+      .in("status", ["paid", "delivered"]);
+
+    if (error) {
+      console.error("[store] getDueDay7Orders:", error.message);
+      throw new Error(error.message);
+    }
+
+    return (data ?? [])
+      .map((row) => fromPayload(row as { payload: Order })!)
+      .filter(isDue);
+  }
+
+  const all = await readAllFile();
+  return Object.values(all).filter(isDue);
+}
