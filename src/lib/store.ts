@@ -197,20 +197,13 @@ export async function getDueDay7Orders(now = Date.now()): Promise<Order[]> {
     !o.day7SentAt &&
     !o.day7EmailId;
 
-  const sb = getSupabase();
+  const sql = getSql();
 
-  if (sb) {
-    const { data, error } = await sb
-      .from("orders")
-      .select("payload")
-      .in("status", ["paid", "delivered"]);
-
-    if (error) {
-      console.error("[store] getDueDay7Orders:", error.message);
-      throw new Error(error.message);
-    }
-
-    return (data ?? [])
+  if (sql) {
+    const rows = await sql`
+      select payload from orders where status in ('paid', 'delivered')
+    `;
+    return rows
       .map((row) => fromPayload(row as { payload: Order })!)
       .filter(isDue);
   }
