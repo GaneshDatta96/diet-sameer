@@ -1,0 +1,24 @@
+# Hobby Vercel only allows daily cron. This pings deliver every 15 minutes
+# so 1–2 hour plan delays actually send via SMTP.
+name: Deliver due plan emails
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit deliver endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_URL: ${{ secrets.CRON_URL }}
+        run: |
+          set -euo pipefail
+          url="${CRON_URL:-https://diet-sameer-1.vercel.app/api/cron/deliver}"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            "$url"

@@ -62,7 +62,7 @@ async function parseApiResponse(res: Response): Promise<Record<string, unknown>>
   if (!text.trim()) {
     throw new Error(
       res.status === 503
-        ? "Server storage is not configured yet. Add Supabase URL + service role key on Vercel."
+        ? "Server storage is not configured yet. Add DATABASE_URL (Neon) on Vercel."
         : `Server returned an empty response (${res.status}). Please try again.`
     );
   }
@@ -148,13 +148,12 @@ export function PlanFlow() {
   }, []);
 
   useEffect(() => {
-    if (!embed) return;
+    if (!embed || SKIP_PAYWALL) return;
     if (emailFromUrl) void checkPaid(emailFromUrl);
   }, [embed, emailFromUrl, checkPaid]);
 
-  const alreadyPaid = embed
-    ? paidStatus === "paid"
-    : SKIP_PAYWALL || paidStatus === "paid";
+  // Paywall-off (test) OR a recorded Kajabi payment → craft without checkout.
+  const alreadyPaid = SKIP_PAYWALL || paidStatus === "paid";
 
   const insights = useMemo(() => analyzeFormInput(form), [form]);
   const placeholders = useMemo(
@@ -228,7 +227,7 @@ export function PlanFlow() {
           return;
         }
       }
-      if (current.key === "email" && embed) {
+      if (current.key === "email" && embed && !SKIP_PAYWALL) {
         await checkPaid(form.email);
       }
       setError(null);
@@ -332,12 +331,12 @@ export function PlanFlow() {
           </span>
         </div>
 
-        {embed && paidStatus === "paid" && (
+        {embed && !SKIP_PAYWALL && paidStatus === "paid" && (
           <p className="mt-3 rounded-xl border border-green/30 bg-green/5 px-3 py-2 text-xs text-ink">
             Payment found — finish these questions and we&apos;ll email your plan.
           </p>
         )}
-        {embed && paidStatus === "unpaid" && form.email && (
+        {embed && !SKIP_PAYWALL && paidStatus === "unpaid" && form.email && (
           <p className="mt-3 rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-xs text-ink">
             No payment matched this email yet. Use the same email from checkout,
             or continue and we&apos;ll send you to pay.

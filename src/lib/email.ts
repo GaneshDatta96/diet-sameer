@@ -9,7 +9,7 @@ interface SendPlanArgs {
   to: string;
   firstName: string;
   plan: MealPlan;
-  /** When set, Resend holds the email until this time (epoch ms). SMTP sends immediately. */
+  /** When set, Resend schedules; SMTP defers to cron until this time (epoch ms). */
   scheduledAt?: number;
 }
 
@@ -106,11 +106,18 @@ export async function sendPlanEmail({
   firstName,
   plan,
   scheduledAt,
-}: SendPlanArgs): Promise<{ ok: boolean; id?: string }> {
+}: SendPlanArgs): Promise<{ ok: boolean; id?: string; deferred?: boolean }> {
   const subject = `${firstName ? firstName + ", your" : "Your"} 7-Day Gut Freedom plan is ready`;
   const html = renderPlanEmail(plan, firstName || "there");
 
   if (config.smtp) {
+    // SMTP cannot schedule — leave for /api/cron/deliver once deliverAt is due.
+    if (scheduledAt && scheduledAt > Date.now()) {
+      console.log(
+        `[email] SMTP defer plan → ${to} until ${new Date(scheduledAt).toISOString()}`
+      );
+      return { ok: true, deferred: true };
+    }
     console.log(`[email] sending via SMTP (${config.smtp.host}) → ${to}`);
     return sendViaSmtp(to, subject, html);
   }

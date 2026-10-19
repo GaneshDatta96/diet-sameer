@@ -1,43 +1,16 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { promises as fs } from "fs";
 import path from "path";
+import { getSql, requireDatabase } from "./db";
 import { Order } from "./types";
 
 /**
  * Order store:
- * - Supabase (Postgres) in production
- * - Local JSON file under `.data/` for `next dev` without Supabase
+ * - Neon Postgres when DATABASE_URL is set (production / Vercel)
+ * - Local JSON under `.data/` for `next dev` without Neon
  */
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const FILE = path.join(DATA_DIR, "orders.json");
-
-let supabaseClient: SupabaseClient | null | undefined;
-
-function getSupabase(): SupabaseClient | null {
-  if (supabaseClient !== undefined) return supabaseClient;
-
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_SECRET_KEY ??
-    "";
-
-  if (url && key) {
-    supabaseClient = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-  } else {
-    supabaseClient = null;
-  }
-  return supabaseClient;
-}
-
-function requireStorage(): void {
-  if (!getSupabase() && process.env.VERCEL === "1") {
-    throw new Error("MISSING_SUPABASE");
-  }
-}
 
 type OrderRow = {
   id: string;
@@ -57,11 +30,11 @@ function toRow(order: Order): OrderRow {
   };
 }
 
-function fromPayload(data: { payload: Order } | null | undefined): Order | undefined {
+function fromPayload(
+  data: { payload: Order } | null | undefined
+): Order | undefined {
   return data?.payload;
 }
-
-/* ----------------------------- file fallback ----------------------------- */
 
 async function readAllFile(): Promise<Record<string, Order>> {
   try {
@@ -77,30 +50,22 @@ async function writeAllFile(orders: Record<string, Order>): Promise<void> {
   await fs.writeFile(FILE, JSON.stringify(orders, null, 2), "utf8");
 }
 
-/* ----------------------------- public API ----------------------------- */
-
 /** Find the most recent pending order for an email (Kajabi webhook matching). */
 export async function findPendingOrderByEmail(
   email: string
 ): Promise<Order | undefined> {
   const normalized = email.trim().toLowerCase();
-  const sb = getSupabase();
+  const sql = getSql();
 
-  if (sb) {
-    const { data, error } = await sb
-      .from("orders")
-      .select("payload")
-      .eq("status", "pending")
-      .eq("email", normalized)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.error("[store] findPendingOrderByEmail:", error.message);
-      throw new Error(error.message);
-    }
-    return fromPayload(data as { payload: Order } | null);
+  if (sql) {
+    const rows = await sql`
+      select payload
+      from orders
+      where status = 'pending' and email = ${normalized}
+      order by created_at desc
+      limit 1
+    `;
+    return fromPayload(rows[0] as { payload: Order } | undefined);
   }
 
   const all = await readAllFile();
@@ -114,15 +79,26 @@ export async function findPendingOrderByEmail(
 }
 
 export async function saveOrder(order: Order): Promise<Order> {
-  requireStorage();
-  const sb = getSupabase();
+  requireDatabase();
+  const sql = getSql();
+  const row = toRow(order);
 
-  if (sb) {
-    const { error } = await sb.from("orders").upsert(toRow(order));
-    if (error) {
-      console.error("[store] saveOrder:", error.message);
-      throw new Error(error.message);
-    }
+  if (sql) {
+    await sql`
+      insert into orders (id, created_at, status, email, payload)
+      values (
+        ${row.id},
+        ${row.created_at},
+        ${row.status},
+        ${row.email},
+        ${JSON.stringify(row.payload)}::jsonb
+      )
+      on conflict (id) do update set
+        created_at = excluded.created_at,
+        status = excluded.status,
+        email = excluded.email,
+        payload = excluded.payload
+    `;
     return order;
   }
 
@@ -133,20 +109,13 @@ export async function saveOrder(order: Order): Promise<Order> {
 }
 
 export async function getOrder(id: string): Promise<Order | undefined> {
-  const sb = getSupabase();
+  const sql = getSql();
 
-  if (sb) {
-    const { data, error } = await sb
-      .from("orders")
-      .select("payload")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (error) {
-      console.error("[store] getOrder:", error.message);
-      throw new Error(error.message);
-    }
-    return fromPayload(data as { payload: Order } | null);
+  if (sql) {
+    const rows = await sql`
+      select payload from orders where id = ${id} limit 1
+    `;
+    return fromPayload(rows[0] as { payload: Order } | undefined);
   }
 
   const all = await readAllFile();
@@ -157,7 +126,7 @@ export async function updateOrder(
   id: string,
   patch: Partial<Order>
 ): Promise<Order | undefined> {
-  requireStorage();
+  requireDatabase();
   const existing = await getOrder(id);
   if (!existing) return undefined;
   const updated = { ...existing, ...patch };
@@ -167,20 +136,13 @@ export async function updateOrder(
 
 /** Orders that are paid, have a plan, and are past deliverAt (cron fallback only). */
 export async function getDueOrders(now = Date.now()): Promise<Order[]> {
-  const sb = getSupabase();
+  const sql = getSql();
 
-  if (sb) {
-    const { data, error } = await sb
-      .from("orders")
-      .select("payload")
-      .eq("status", "paid");
-
-    if (error) {
-      console.error("[store] getDueOrders:", error.message);
-      throw new Error(error.message);
-    }
-
-    return (data ?? [])
+  if (sql) {
+    const rows = await sql`
+      select payload from orders where status = 'paid'
+    `;
+    return rows
       .map((row) => fromPayload(row as { payload: Order })!)
       .filter(
         (o) =>
@@ -211,20 +173,13 @@ export async function getDueFeedbackOrders(now = Date.now()): Promise<Order[]> {
     !o.feedbackSentAt &&
     !o.feedbackEmailId;
 
-  const sb = getSupabase();
+  const sql = getSql();
 
-  if (sb) {
-    const { data, error } = await sb
-      .from("orders")
-      .select("payload")
-      .in("status", ["paid", "delivered"]);
-
-    if (error) {
-      console.error("[store] getDueFeedbackOrders:", error.message);
-      throw new Error(error.message);
-    }
-
-    return (data ?? [])
+  if (sql) {
+    const rows = await sql`
+      select payload from orders where status in ('paid', 'delivered')
+    `;
+    return rows
       .map((row) => fromPayload(row as { payload: Order })!)
       .filter(isDue);
   }

@@ -48,12 +48,12 @@ export const config = {
   skipPaywall: process.env.SKIP_PAYWALL !== "0",
 
   /**
-   * Delivery delay before the plan email goes out. Defaults to 0 while testing.
-   * Production: set DELIVERY_MIN_MINUTES=480 and DELIVERY_MAX_MINUTES=720.
+   * Delivery delay before the plan email goes out.
+   * Live default: 60–120 minutes (1–2h). Set both to 0 for immediate send.
    */
   delivery: {
-    minMinutes: Number(process.env.DELIVERY_MIN_MINUTES ?? 0),
-    maxMinutes: Number(process.env.DELIVERY_MAX_MINUTES ?? 0),
+    minMinutes: Number(process.env.DELIVERY_MIN_MINUTES ?? 60),
+    maxMinutes: Number(process.env.DELIVERY_MAX_MINUTES ?? 120),
   },
 
   /**

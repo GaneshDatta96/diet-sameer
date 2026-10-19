@@ -1,5 +1,5 @@
--- Run this once in the Supabase SQL Editor (Dashboard → SQL → New query).
--- Free tier is enough.
+-- Neon / Postgres schema for Gut Freedom meal plan orders.
+-- Applied via: node --env-file=.env scripts/apply-neon-schema.mjs
 
 create table if not exists orders (
   id text primary key,
@@ -17,7 +17,7 @@ create index if not exists orders_due_idx
   on orders (created_at)
   where status = 'paid';
 
--- Pay-first Kajabi purchases waiting for the Vercel questionnaire.
+-- Pay-first Kajabi purchases waiting for the questionnaire.
 create table if not exists paid_entitlements (
   id text primary key,
   email text not null,
@@ -34,7 +34,3 @@ create index if not exists paid_entitlements_email_unused_idx
 
 create unique index if not exists paid_entitlements_payment_ref_uidx
   on paid_entitlements (payment_ref);
-
--- Server-only access via the service role key.
-alter table orders enable row level security;
-alter table paid_entitlements enable row level security;

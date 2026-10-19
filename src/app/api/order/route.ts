@@ -23,11 +23,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ orderId: order.id });
   } catch (err) {
     console.error("[order] failed:", err);
-    if (err instanceof Error && err.message === "MISSING_SUPABASE") {
+    if (
+      err instanceof Error &&
+      (err.message === "MISSING_DATABASE" || err.message === "MISSING_SUPABASE")
+    ) {
       return NextResponse.json(
         {
           error:
-            "Order storage is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Vercel.",
+            "Order storage is not configured. Add DATABASE_URL (Neon) on Vercel.",
         },
         { status: 503 }
       );
